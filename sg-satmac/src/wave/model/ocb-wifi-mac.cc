@@ -31,6 +31,7 @@
 #include "ocb-wifi-mac.h"
 #include "vendor-specific-action.h"
 #include "higher-tx-tag.h"
+#include "ns3/wifi-net-device.h"
 
 namespace ns3 {
 
@@ -273,9 +274,9 @@ OcbWifiMac::Enqueue (Ptr<const Packet> packet, Mac48Address to)
     {
 	  if (getTdmaEnable())
 	  {
-		  m_tdma->Queue(packet, hdr);
-	  }
 
+		m_tdma->Queue(packet, hdr);
+	  }
 	  else
 	  {
 	     m_txop->Queue (packet, hdr);
@@ -371,6 +372,7 @@ OcbWifiMac::Receive (Ptr<Packet> packet, const WifiMacHeader *hdr)
   // Invoke the receive handler of our parent class to deal with any
   // other frames. Specifically, this will handle Block Ack-related
   // Management Action frames.
+
   RegularWifiMac::Receive (packet, hdr);
 }
 
@@ -503,5 +505,11 @@ OcbWifiMac::EnableForWave (Ptr<WaveNetDevice> device)
 void OcbWifiMac::SlotGroupEnque(Ptr<const Packet> packet,const WifiMacHeader &hdr)
 {
 	m_txop->Queue(packet, hdr);
+}
+
+
+void OcbWifiMac::TdmaEnque(Ptr<const Packet> packet,const WifiMacHeader &hdr)
+{
+	m_tdma->Queue(packet, hdr);
 }
 } // namespace ns3

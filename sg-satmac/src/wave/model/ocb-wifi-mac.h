@@ -196,6 +196,7 @@ private:
 
 public:
   void SlotGroupEnque(Ptr<const Packet> packet,const WifiMacHeader &hdr);
+  void TdmaEnque(Ptr<const Packet> packet,const WifiMacHeader &hdr);
 };
 
 }

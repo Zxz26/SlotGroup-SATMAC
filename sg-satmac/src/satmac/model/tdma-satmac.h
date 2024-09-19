@@ -286,20 +286,27 @@ public:
 		vemac_mode_ = vemacMode;
 	}
 
-//Slot Group
+
+/*Slot Group*/
 private:
-  Ptr<OcbWifiMac> GetOcbWifiMac();
-  void SlotGroupTx();
+	Ptr<OcbWifiMac> GetOcbInstance();
 
-  bool isNeedSg;//是否需求时隙组
-  int determine_SG();
-  int SG_num_;
+	EventId slotHandlerEvent;
+	void StartSlotHandler();
+	void StopSlotHandler();
 
-  char m_geohash[3];
-  char* GetGeohash(){
-	  return m_geohash;
-  }
-  std::unordered_set<int> local_same_sg_id;//本地维护的和本节点使用相同时隙组的节点ID
+	EventId slotgroupHandlerEvent;
+	void slotgroupHandler();
+
+	int m_slot_group;
+	long long total_slot_group_count;
+	int slot_group_count;//当前时隙组index
+	bool isNeedSg;
+	void SlotGroupStart();
+	void SlotGroupEnd();
+	EventId midSlotListeningEvent;
+	void StartMidSlotListening();
+	void MidSlotListening();
 
 private:
   static Time GetDefaultSlotTime (void);
