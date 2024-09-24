@@ -38,6 +38,8 @@ namespace ns3 {
 
 NS_LOG_COMPONENT_DEFINE ("WifiHelper");
 
+Mac48Address macAddress = Mac48Address::Allocate ();
+
 /**
  * ASCII trace Phy transmit sink with context
  * \param stream the output stream
@@ -744,7 +746,8 @@ WifiHelper::Install (const WifiPhyHelper &phyHelper,
       mac->setNode(node);
       mac->setTdmaEnable(0);
       mac->setPhy(phy);
-      mac->SetAddress (Mac48Address::Allocate ());
+
+      mac->SetAddress (macAddress);
       mac->ConfigureStandard (m_standard);
       phy->ConfigureStandard (m_standard);
       device->SetMac (mac);
@@ -752,6 +755,7 @@ WifiHelper::Install (const WifiPhyHelper &phyHelper,
       device->SetRemoteStationManager (manager);
       node->AddDevice (device);
       devices.Add (device);
+      device->SetCSMAMac(mac);
       NS_LOG_DEBUG ("node=" << node << ", mob=" << node->GetObject<MobilityModel> ());
     }
   return devices;
@@ -762,35 +766,50 @@ WifiHelper::Install (const WifiPhyHelper &phyHelper,
                      const WifiMacHelper &macHelper, NodeContainer c, int tdma_enable) const
 {
   NetDeviceContainer devices;
-  int sti=1;
+  int sti = 1;
+
   for (NodeContainer::Iterator i = c.Begin (); i != c.End (); ++i)
+  {
+    Ptr<Node> node = *i;
+    Ptr<WifiNetDevice> device = CreateObject<WifiNetDevice> ();
+    Ptr<WifiRemoteStationManager> manager = m_stationManager.Create<WifiRemoteStationManager> ();
+
+    Ptr<WifiMac> tdmaMac = macHelper.Create ();
+    tdmaMac->setNode (node);
+    tdmaMac->setTdmaEnable (tdma_enable);  // 启用TDMA
+
+    Ptr<WifiPhy> tdmaphy = phyHelper.Create (node, device);
+    tdmaMac->setPhy (tdmaphy);
+
+    // 只分配一次 MAC 地址
+    tdmaMac->SetAddress (macAddress);
+
+    tdmaMac->ConfigureStandard (m_standard);
+    tdmaphy->ConfigureStandard (m_standard);
+
+
+    device->SetMac (tdmaMac);
+    device->SetPhy (tdmaphy);
+    device->SetRemoteStationManager (manager);
+    node->AddDevice (device);
+    devices.Add (device);
+
+    if (tdma_enable)
     {
-      Ptr<Node> node = *i;
-      Ptr<WifiNetDevice> device = CreateObject<WifiNetDevice> ();
-      Ptr<WifiRemoteStationManager> manager = m_stationManager.Create<WifiRemoteStationManager> ();
-      Ptr<WifiMac> mac = macHelper.Create ();
-      mac->setNode(node);
-      mac->setTdmaEnable(tdma_enable);
-      Ptr<WifiPhy> phy = phyHelper.Create (node, device);
-      mac->setPhy(phy);
-      mac->SetAddress (Mac48Address::Allocate ());
-      mac->ConfigureStandard (m_standard);
-      phy->ConfigureStandard (m_standard);
-      device->SetMac (mac);
-      device->SetPhy (phy);
-      device->SetRemoteStationManager (manager);
-      node->AddDevice (device);
-      devices.Add (device);
-      if (tdma_enable) {
-    	  mac->InitialTdma();
-    	  Ptr<TdmaSatmac> tdma = (DynamicCast<OcbWifiMac>(mac))->GetTdmaObject();
-    	  tdma->SetGlobalSti(sti++);
-    	  tdma->setNodePtr(node);
-      }
-      NS_LOG_DEBUG ("node=" << node << ", mob=" << node->GetObject<MobilityModel> ());
+      tdmaMac->InitialTdma ();
+      Ptr<TdmaSatmac> tdma = (DynamicCast<OcbWifiMac> (tdmaMac))->GetTdmaObject ();
+      tdma->SetGlobalSti (sti++);
+      tdma->setNodePtr (node);
     }
+
+    device->SetTDMAMac (tdmaMac);
+    NS_LOG_DEBUG ("node=" << node << ", mob=" << node->GetObject<MobilityModel> ());
+  }
+
   return devices;
 }
+
+
 
 NetDeviceContainer
 WifiHelper::Install (const WifiPhyHelper &phyHelper,

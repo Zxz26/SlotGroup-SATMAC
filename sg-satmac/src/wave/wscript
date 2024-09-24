@@ -25,7 +25,7 @@ def build(bld):
         'helper/wave-mac-helper.cc',
         'helper/wave-helper.cc',
         'helper/wifi-80211p-helper.cc',
-        'helper/wave-bsm-helper.cc'
+        'helper/wave-bsm-helper.cc',
         ]
 
     module_test = bld.create_ns3_module_test_library('wave')

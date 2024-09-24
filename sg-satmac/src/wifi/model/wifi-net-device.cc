@@ -29,6 +29,7 @@
 #include "wifi-phy.h"
 #include "regular-wifi-mac.h"
 #include "wifi-mac-queue.h"
+#include "ns3/ipv4.h"
 
 namespace ns3 {
 
@@ -75,6 +76,7 @@ WifiNetDevice::WifiNetDevice ()
   : m_configComplete (false)
 {
   NS_LOG_FUNCTION_NOARGS ();
+  m_sendEnabled = true;
 }
 
 WifiNetDevice::~WifiNetDevice ()
@@ -344,13 +346,16 @@ WifiNetDevice::Send (Ptr<Packet> packet, const Address& dest, uint16_t protocolN
 {
   NS_LOG_FUNCTION (this << packet << dest << protocolNumber);
   NS_ASSERT (Mac48Address::IsMatchingType (dest));
+  if(!m_sendEnabled)
+  {
+	  return false;
+  }
 
   Mac48Address realTo = Mac48Address::ConvertFrom (dest);
 
   LlcSnapHeader llc;
   llc.SetType (protocolNumber);
   packet->AddHeader (llc);
-
   m_mac->NotifyTx (packet);
   m_mac->Enqueue (packet, realTo);
   return true;
@@ -499,6 +504,29 @@ WifiNetDevice::SelectQueue (Ptr<QueueItem> item) const
   // the access category assigned to the packet should be downgraded
 
   return static_cast<uint8_t> (QosUtilsMapTidToAc (priority));
+}
+
+void WifiNetDevice::SetTDMAMac(Ptr<WifiMac> tdmaMac)
+{
+	this->m_tdmaMac = tdmaMac;
+}
+
+
+void WifiNetDevice::SetCSMAMac(Ptr<WifiMac> csmaMac)
+{
+	this->m_csmaMac = csmaMac;
+}
+
+
+Ptr<WifiMac> WifiNetDevice::GetTDMAMac() const
+{
+	return m_tdmaMac;
+}
+
+
+Ptr<WifiMac> WifiNetDevice::GetCSMAMac() const
+{
+	return m_csmaMac;
 }
 
 } //namespace ns3

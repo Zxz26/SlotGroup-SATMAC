@@ -45,6 +45,10 @@ NqosWaveMacHelper::Default (void)
   helper.SetType ("ns3::OcbWifiMac", "QosSupported", BooleanValue (false));
   return helper;
 }
+
+
+
+
 void
 NqosWaveMacHelper::SetType (std::string type,
                             std::string n0, const AttributeValue &v0,
@@ -59,7 +63,7 @@ NqosWaveMacHelper::SetType (std::string type,
                             std::string n9, const AttributeValue &v9,
                             std::string n10, const AttributeValue &v10)
 {
-  if (type.compare ("ns3::OcbWifiMac") != 0)
+  if (type.compare ("ns3::OcbWifiMac") != 0 && type.compare ("ns3::CSMAMac") != 0)
     {
       NS_FATAL_ERROR ("QosWaveMacHelper shall set OcbWifiMac");
     }
@@ -111,7 +115,7 @@ QosWaveMacHelper::SetType (std::string type,
                            std::string n9, const AttributeValue &v9,
                            std::string n10, const AttributeValue &v10)
 {
-  if (type.compare ("ns3::OcbWifiMac") != 0)
+  if (type.compare ("ns3::OcbWifiMac") != 0 && type.compare ("ns3::CSMAMac") != 0)
     {
       NS_FATAL_ERROR ("QosWaveMacHelper shall set OcbWifiMac");
     }

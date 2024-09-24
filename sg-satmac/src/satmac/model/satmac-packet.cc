@@ -97,162 +97,74 @@ FiHeader::FiHeader ()
 
 NS_OBJECT_ENSURE_REGISTERED (FiHeader);
 
-
-//FiHeader::FiHeader (uint32_t framelength, int global_sti, slot_tag *fi_local, SlotGroupInfo *slotgroup_local)
-//	:m_framelength(framelength), m_global_sti(global_sti)
-//{
-//	uint32_t  field_length;
-//	uint8_t buffer;
-//	int bit_pos=7, byte_pos=0;
-//	m_fi_size = (BIT_LENGTH_SLOT_TAG * m_framelength + BIT_LENGTH_STI + BIT_LENGTH_FRAMELEN)/8;
-//	if(((BIT_LENGTH_SLOT_TAG * m_framelength + BIT_LENGTH_STI + BIT_LENGTH_FRAMELEN) %8) != 0 ){
-//	  m_fi_size++;
-//	}
-//
-//	m_buffer = new unsigned char[m_fi_size];
-//	memset(m_buffer, 0, m_fi_size);
-//
-//	field_length = BIT_LENGTH_STI/8 ;
-//
-//	if ( BIT_LENGTH_STI%8 != 0 ){
-//		buffer = (unsigned char)(m_global_sti>>( 8* field_length ));
-//		setvalue(buffer, BIT_LENGTH_STI%8, m_buffer, byte_pos, bit_pos);
-//	}
-//
-//	for(int j = field_length-1 ; j >= 0 ; j-- ){
-//		buffer = (unsigned char)(m_global_sti>>(8*j));
-//		setvalue(buffer, 8, m_buffer, byte_pos, bit_pos);
-//	}
-//
-//	//frame len 4 bits
-//	buffer = log(m_framelength)/log(2);
-//	setvalue(buffer, BIT_LENGTH_FRAMELEN, m_buffer, byte_pos, bit_pos);
-//
-//	for(int i=0; i< m_framelength; i++){
-//		buffer = fi_local[i].busy;
-//		setvalue(buffer, BIT_LENGTH_BUSY, m_buffer, byte_pos, bit_pos);
-//		//sti
-//		field_length = BIT_LENGTH_STI/8 ;
-//		if ( BIT_LENGTH_STI%8 != 0 ){
-//			buffer= (unsigned char)(fi_local[i].sti>>( 8* field_length ));
-//			setvalue(buffer, BIT_LENGTH_STI%8, m_buffer, byte_pos, bit_pos);
-//		}
-//		for(int j = field_length-1 ; j >= 0 ; j-- ){
-//			buffer =(unsigned char)(fi_local[i].sti>>(8*j));
-//			setvalue(buffer, 8, m_buffer, byte_pos, bit_pos);
-//		}
-//		//count
-//		unsigned char tmpbitmask = 0xff;
-//		tmpbitmask = ~((tmpbitmask >> BIT_LENGTH_COUNT)<<BIT_LENGTH_COUNT);
-//		if (fi_local[i].count_2hop > tmpbitmask)
-//			buffer = tmpbitmask;
-//		else
-//			buffer = (unsigned char)fi_local[i].count_2hop;
-//		setvalue(buffer, BIT_LENGTH_COUNT, m_buffer, byte_pos, bit_pos);
-//
-//		//PSF
-//		buffer = fi_local[i].psf;
-//		if (BIT_LENGTH_PSF > 0)
-//			setvalue(buffer, BIT_LENGTH_PSF, m_buffer, byte_pos, bit_pos);
-//
-//		//clear Count_2hop/3hop
-//		if (fi_local[i].sti == m_global_sti) {
-//			fi_local[i].count_2hop = 1;
-//			fi_local[i].count_3hop = 1;
-//		} else {
-//			fi_local[i].c3hop_flag = 0;
-//			fi_local[i].count_2hop = 0;
-//			fi_local[i].count_3hop = 0;
-//		}
-//	}
-//
-//}
-
-FiHeader::FiHeader(uint32_t framelength, int global_sti, slot_tag* fi_local, SlotGroupInfo* slotgroup_local)
-    : m_framelength(framelength), m_global_sti(global_sti)
+FiHeader::FiHeader (uint32_t framelength, int global_sti, slot_tag *fi_local)
+	:m_framelength(framelength), m_global_sti(global_sti)
 {
-    uint32_t field_length;
-    uint8_t buffer;
-    int bit_pos = 7, byte_pos = 0;
+	uint32_t  field_length;
+	uint8_t buffer;
+	int bit_pos=7, byte_pos=0;
+	m_fi_size = (BIT_LENGTH_SLOT_TAG * m_framelength + BIT_LENGTH_STI + BIT_LENGTH_FRAMELEN)/8;
+	if(((BIT_LENGTH_SLOT_TAG * m_framelength + BIT_LENGTH_STI + BIT_LENGTH_FRAMELEN) %8) != 0 ){
+	  m_fi_size++;
+	}
 
-    // 计算FI大小，包括slot_tag和新增的slot_group_info部分
-    m_fi_size = (BIT_LENGTH_SLOT_TAG * m_framelength + BIT_LENGTH_STI + BIT_LENGTH_FRAMELEN
-                + (BIT_LENGTH_SLOTGROUP_INFO * (m_framelength / 4))) / 8;
-    if (((BIT_LENGTH_SLOT_TAG * m_framelength + BIT_LENGTH_STI + BIT_LENGTH_FRAMELEN
-          + (BIT_LENGTH_SLOTGROUP_INFO * (m_framelength / 4))) % 8) != 0) {
-        m_fi_size++;
-    }
+	m_buffer = new unsigned char[m_fi_size];
+	memset(m_buffer, 0, m_fi_size);
+	
+	field_length = BIT_LENGTH_STI/8 ;
+	
+	if ( BIT_LENGTH_STI%8 != 0 ){
+		buffer = (unsigned char)(m_global_sti>>( 8* field_length ));
+		setvalue(buffer, BIT_LENGTH_STI%8, m_buffer, byte_pos, bit_pos);
+	}
+	
+	for(int j = field_length-1 ; j >= 0 ; j-- ){
+		buffer = (unsigned char)(m_global_sti>>(8*j));
+		setvalue(buffer, 8, m_buffer, byte_pos, bit_pos);
+	}
+	
+	//frame len 4 bits
+	buffer = log(m_framelength)/log(2);
+	setvalue(buffer, BIT_LENGTH_FRAMELEN, m_buffer, byte_pos, bit_pos);
+	
+	for(int i=0; i< m_framelength; i++){
+		buffer = fi_local[i].busy;
+		setvalue(buffer, BIT_LENGTH_BUSY, m_buffer, byte_pos, bit_pos);
+		//sti
+		field_length = BIT_LENGTH_STI/8 ;
+		if ( BIT_LENGTH_STI%8 != 0 ){
+			buffer= (unsigned char)(fi_local[i].sti>>( 8* field_length ));
+			setvalue(buffer, BIT_LENGTH_STI%8, m_buffer, byte_pos, bit_pos);
+		}
+		for(int j = field_length-1 ; j >= 0 ; j-- ){
+			buffer =(unsigned char)(fi_local[i].sti>>(8*j));
+			setvalue(buffer, 8, m_buffer, byte_pos, bit_pos);
+		}
+		//count
+		unsigned char tmpbitmask = 0xff;
+		tmpbitmask = ~((tmpbitmask >> BIT_LENGTH_COUNT)<<BIT_LENGTH_COUNT);
+		if (fi_local[i].count_2hop > tmpbitmask)
+			buffer = tmpbitmask;
+		else
+			buffer = (unsigned char)fi_local[i].count_2hop;
+		setvalue(buffer, BIT_LENGTH_COUNT, m_buffer, byte_pos, bit_pos);
+	
+		//PSF
+		buffer = fi_local[i].psf;
+		if (BIT_LENGTH_PSF > 0)
+			setvalue(buffer, BIT_LENGTH_PSF, m_buffer, byte_pos, bit_pos);
+	
+		//clear Count_2hop/3hop
+		if (fi_local[i].sti == m_global_sti) {
+			fi_local[i].count_2hop = 1;
+			fi_local[i].count_3hop = 1;
+		} else {
+			fi_local[i].c3hop_flag = 0;
+			fi_local[i].count_2hop = 0;
+			fi_local[i].count_3hop = 0;
+		}
+	}
 
-    m_buffer = new unsigned char[m_fi_size];
-    memset(m_buffer, 0, m_fi_size);
-
-    // Encode global_sti
-    field_length = BIT_LENGTH_STI / 8;
-    if (BIT_LENGTH_STI % 8 != 0) {
-        buffer = (unsigned char)(m_global_sti >> (8 * field_length));
-        setvalue(buffer, BIT_LENGTH_STI % 8, m_buffer, byte_pos, bit_pos);
-    }
-    for (int j = field_length - 1; j >= 0; j--) {
-        buffer = (unsigned char)(m_global_sti >> (8 * j));
-        setvalue(buffer, 8, m_buffer, byte_pos, bit_pos);
-    }
-
-    // Encode frame length (4 bits)
-    buffer = log(m_framelength) / log(2);
-    setvalue(buffer, BIT_LENGTH_FRAMELEN, m_buffer, byte_pos, bit_pos);
-
-    // Encode slot_tag for each frame
-    for (int i = 0; i < m_framelength; i++) {
-        // Encode busy
-        buffer = fi_local[i].busy;
-        setvalue(buffer, BIT_LENGTH_BUSY, m_buffer, byte_pos, bit_pos);
-
-        // Encode sti
-        field_length = BIT_LENGTH_STI / 8;
-        if (BIT_LENGTH_STI % 8 != 0) {
-            buffer = (unsigned char)(fi_local[i].sti >> (8 * field_length));
-            setvalue(buffer, BIT_LENGTH_STI % 8, m_buffer, byte_pos, bit_pos);
-        }
-        for (int j = field_length - 1; j >= 0; j--) {
-            buffer = (unsigned char)(fi_local[i].sti >> (8 * j));
-            setvalue(buffer, 8, m_buffer, byte_pos, bit_pos);
-        }
-
-        // Encode count_2hop
-        unsigned char tmpbitmask = 0xff;
-        tmpbitmask = ~((tmpbitmask >> BIT_LENGTH_COUNT) << BIT_LENGTH_COUNT);
-        buffer = (fi_local[i].count_2hop > tmpbitmask) ? tmpbitmask : (unsigned char)fi_local[i].count_2hop;
-        setvalue(buffer, BIT_LENGTH_COUNT, m_buffer, byte_pos, bit_pos);
-
-        // Encode PSF
-        buffer = fi_local[i].psf;
-        if (BIT_LENGTH_PSF > 0) {
-            setvalue(buffer, BIT_LENGTH_PSF, m_buffer, byte_pos, bit_pos);
-        }
-
-        // Clear count_2hop/3hop if sti matches global_sti
-        if (fi_local[i].sti == m_global_sti) {
-            fi_local[i].count_2hop = 1;
-            fi_local[i].count_3hop = 1;
-        } else {
-            fi_local[i].c3hop_flag = 0;
-            fi_local[i].count_2hop = 0;
-            fi_local[i].count_3hop = 0;
-        }
-    }
-
-    // Encode slotgroup info (geohash and count_node)
-    for (int i = 0; i < m_framelength / 4; i++) {
-        // Encode geohash (16 bits)
-        for (int j = 0; j < 2; j++) {
-            buffer = (unsigned char)(slotgroup_local[i].geohash[j]);
-            setvalue(buffer, 8, m_buffer, byte_pos, bit_pos);
-        }
-
-        // Encode count_node (2 bits)
-        buffer = slotgroup_local[i].count_node;
-        setvalue(buffer, BIT_LENGTH_COUNT_NODE, m_buffer, byte_pos, bit_pos);
-    }
 }
 
 TypeId
@@ -408,50 +320,29 @@ unsigned long FiHeader::decode_value(unsigned int &byte_pos,unsigned int &bit_po
 	return value;
 }
 
-void FiHeader::decode_slot_tag(unsigned int &byte_pos, unsigned int &bit_pos, int slot_pos, Frame_info *fi) {
-    unsigned long value = 0;
+void FiHeader::decode_slot_tag(unsigned int &byte_pos,unsigned int &bit_pos, int slot_pos, Frame_info *fi){
+	unsigned long value=0;
 
-    slot_tag* fi_local = fi->slot_describe;
-    SlotGroupInfo* slotgroup_local = fi->Slotgroup_describe;  // 获取 SlotGroupInfo
+	slot_tag* fi_local=fi->slot_describe;
+	NS_ASSERT(bit_pos >= 0);
+	//busy
+	value=this->decode_value(byte_pos,bit_pos,BIT_LENGTH_BUSY);
+	fi_local[slot_pos].busy = (unsigned char)value;
 
-    NS_ASSERT(bit_pos >= 0);
+	//sti
+	value=this->decode_value(byte_pos,bit_pos,BIT_LENGTH_STI);
+	fi_local[slot_pos].sti = (unsigned int)value;
 
-    // busy
-    value = this->decode_value(byte_pos, bit_pos, BIT_LENGTH_BUSY);
-    fi_local[slot_pos].busy = (unsigned char)value;
+	//count
+	value=this->decode_value(byte_pos,bit_pos,BIT_LENGTH_COUNT);
+	fi_local[slot_pos].count_2hop = (unsigned int)value;
 
-    // sti
-    value = this->decode_value(byte_pos, bit_pos, BIT_LENGTH_STI);
-    fi_local[slot_pos].sti = (unsigned int)value;
+	//psf
+	value=this->decode_value(byte_pos,bit_pos,BIT_LENGTH_PSF);
+	fi_local[slot_pos].psf = (unsigned int)value;
 
-    // count
-    value = this->decode_value(byte_pos, bit_pos, BIT_LENGTH_COUNT);
-    fi_local[slot_pos].count_2hop = (unsigned int)value;
-
-    // psf
-    value = this->decode_value(byte_pos, bit_pos, BIT_LENGTH_PSF);
-    fi_local[slot_pos].psf = (unsigned int)value;
-
-    return;
+	return;
 }
-
-void FiHeader::decode_slotgroup_info(unsigned int &byte_pos, unsigned int &bit_pos, int group_pos, Frame_info *fi) {
-    unsigned long value = 0;
-
-    // 解码 count_node
-    value = this->decode_value(byte_pos, bit_pos, BIT_LENGTH_COUNT_NODE);
-    fi->Slotgroup_describe[group_pos].count_node = (unsigned int)value;
-
-    // 解码 geohash
-    for (int j = 0; j < sizeof(fi->Slotgroup_describe[group_pos].geohash) - 1; j++) {
-        value = this->decode_value(byte_pos, bit_pos, 8); // 每次读取一个字节
-        fi->Slotgroup_describe[group_pos].geohash[j] = (char)value;
-    }
-
-    // 设置字符串的结束符
-    fi->Slotgroup_describe[group_pos].geohash[sizeof(fi->Slotgroup_describe[group_pos].geohash) - 1] = '\0';
-}
-
 
 
 void

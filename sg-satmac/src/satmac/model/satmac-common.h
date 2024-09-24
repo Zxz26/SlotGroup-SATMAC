@@ -17,10 +17,7 @@
 #define BIT_LENGTH_COUNT	2
 #define BIT_LENGTH_NBCOUNT	5
 #define BIT_LENGTH_SLOT_TAG		(BIT_LENGTH_BUSY+BIT_LENGTH_STI + BIT_LENGTH_PSF+BIT_LENGTH_COUNT)
-/*SLOT GROUP*/
-#define BIT_LENGTH_COUNT_NODE 2
-#define BIT_LENGTH_GEOHASH 16
-#define BIT_LENGTH_SLOTGROUP_INFO (BIT_LENGTH_COUNT_NODE + BIT_LENGTH_GEOHASH)
+
 
 #define SLOT_FREE 				0
 //#define SLOT_MINE				2
@@ -55,16 +52,6 @@ struct slot_tag{
 	}
 };
 
-struct SlotGroupInfo
-{
-	char geohash[3];
-	int count_node;
-	SlotGroupInfo(){
-		strcpy(geohash, "00");
-		count_node = 0;
-	}
-};
-
 
 class Frame_info{
 public:
@@ -75,7 +62,6 @@ public:
 	int valid_time;
 	int recv_slot;
 	int type;	//type=0 FI, type=1 短包
-	SlotGroupInfo *Slotgroup_describe;
 	slot_tag *slot_describe;
 	Frame_info *next_fi;
 
@@ -99,17 +85,12 @@ public:
 		frame_len = framelen;
 		//next_fi = NULL;
 		slot_describe = new slot_tag[frame_len];
-		Slotgroup_describe = new SlotGroupInfo[frame_len / 4];
 		NS_ASSERT(slot_describe != NULL);
 	}
 	~Frame_info(){
 		if(slot_describe){
 			delete[] slot_describe;
 			slot_describe = NULL;
-		}
-		if(Slotgroup_describe){
-			delete[] Slotgroup_describe;
-			Slotgroup_describe = NULL;
 		}
 		next_fi = NULL;
 	}

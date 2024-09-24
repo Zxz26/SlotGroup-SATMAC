@@ -60,7 +60,7 @@ class FiHeader : public Header
 public:
   /// c-tor
   FiHeader ();
-  FiHeader (uint32_t framelength, int global_sti, slot_tag *fi_local, SlotGroupInfo *slotgroup_local);
+  FiHeader (uint32_t framelength, int global_sti, slot_tag *fi_local);
   ~FiHeader() {
   	delete m_buffer;
   	m_buffer = NULL;
@@ -76,7 +76,6 @@ public:
   static void setvalue(unsigned char value, int bit_len, unsigned char* buffer, int &byte_pos, int &bit_pos);
   unsigned long decode_value(unsigned int &byte_pos,unsigned int &bit_pos, unsigned int length);
   void decode_slot_tag(unsigned int &byte_pos,unsigned int &bit_pos, int slot_pos, Frame_info *fi);
-  void decode_slotgroup_info(unsigned int &byte_pos, unsigned int &bit_pos, int group_pos, Frame_info *fi);
   uint8_t * GetBuffer() const;
   //\}
 

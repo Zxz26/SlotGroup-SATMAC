@@ -5,7 +5,7 @@
 #include "ns3/nstime.h"
 #include "tdma-mac.h"
 #include "tdma-mac-low.h"
-#include "tdma-mac-queue.h"
+#include "ns3/tdma-mac-queue.h"
 #include "satmac-common.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/mac-low.h"
@@ -16,8 +16,7 @@
 
 #include "ns3/output-stream-wrapper.h"
 #include "ns3/trace-helper.h"
-#include <memory>
-#include <unordered_set>
+
 
 namespace ns3 {
 
@@ -26,7 +25,6 @@ class TdmaMacLow;
 class TdmaMac;
 class RegularWifiMac;
 class MacLow;
-class OcbWifiMac;
 
 class TransmissionListenerUseless : public Txop
 //MacLowTransmissionListener
@@ -286,28 +284,7 @@ public:
 		vemac_mode_ = vemacMode;
 	}
 
-
-/*Slot Group*/
-private:
-	Ptr<OcbWifiMac> GetOcbInstance();
-
-	EventId slotHandlerEvent;
-	void StartSlotHandler();
-	void StopSlotHandler();
-
-	EventId slotgroupHandlerEvent;
-	void slotgroupHandler();
-
-	int m_slot_group;
-	long long total_slot_group_count;
-	int slot_group_count;//当前时隙组index
-	bool isNeedSg;
-	void SlotGroupStart();
-	void SlotGroupEnd();
-	EventId midSlotListeningEvent;
-	void StartMidSlotListening();
-	void MidSlotListening();
-
+	std::map<int, int> m_neighborCountMap;
 private:
   static Time GetDefaultSlotTime (void);
   static Time GetDefaultGuardTime (void);
@@ -428,6 +405,8 @@ private:
   Callback<bool,uint32_t> m_queueStart;
   Callback<bool,uint32_t> m_queueStop;
 
+  Callback<void,slot_tag*,std::map<int, int>,int,std::map<int,std::vector<int>>> m_AppCallback;
+
   Ptr<TdmaNetDevice> m_device;
   Ptr<TdmaMacQueue> m_queue;
   int m_wifimaclow_flag;
@@ -438,6 +417,7 @@ private:
   Ssid m_ssid;
   Ptr<Node> m_nodePtr;
   Ptr<WifiPhy> m_wifiphy;
+
 //  Time m_lastRxStart;
 //  Time m_lastRxDuration;
 //  bool m_lastRxReceivedOk;
@@ -548,18 +528,7 @@ Ptr<OutputStreamWrapper> m_log_lpf_stream;
 /// Provides uniform random variables.
 Ptr<UniformRandomVariable> m_uniformRandomVariable;
 
-
-
 };
-
-
-
-
-
-
-
-
-
 
 } // namespace ns3
 

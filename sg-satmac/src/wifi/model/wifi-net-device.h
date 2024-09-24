@@ -113,6 +113,23 @@ public:
   void SetPromiscReceiveCallback (PromiscReceiveCallback cb);
   bool SupportsSendFrom (void) const;
 
+  void SetTDMAMac(Ptr<WifiMac> tdmaMac);
+
+
+  void SetCSMAMac(Ptr<WifiMac> csmaMac);
+
+
+  Ptr<WifiMac> GetTDMAMac() const;
+
+
+  Ptr<WifiMac> GetCSMAMac() const;
+
+  void SetSendEnabled(bool enabled) {
+    m_sendEnabled = enabled;
+  }
+
+
+
 
 protected:
   void DoDispose (void);
@@ -226,6 +243,10 @@ private:
   TracedCallback<> m_linkChanges; //!< link change callback
   mutable uint16_t m_mtu; //!< MTU
   bool m_configComplete; //!< configuration complete
+
+  Ptr<WifiMac> m_tdmaMac;
+  Ptr<WifiMac> m_csmaMac;
+  bool m_sendEnabled;
 };
 
 } //namespace ns3

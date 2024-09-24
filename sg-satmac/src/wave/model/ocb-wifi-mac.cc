@@ -194,6 +194,7 @@ void
 OcbWifiMac::Enqueue (Ptr<const Packet> packet, Mac48Address to)
 {
   NS_LOG_FUNCTION (this << packet << to);
+  //std::cout<<"1"<<std::endl;
   if (m_stationManager->IsBrandNew (to))
     {
       //In ad hoc mode, we assume that every destination supports all
@@ -274,14 +275,14 @@ OcbWifiMac::Enqueue (Ptr<const Packet> packet, Mac48Address to)
     {
 	  if (getTdmaEnable())
 	  {
-
-		m_tdma->Queue(packet, hdr);
+		  //std::cout<<"tdma "<<this->getNode()->GetId()<<std::endl;
+		  m_tdma->Queue(packet, hdr);
 	  }
 	  else
 	  {
+		 std::cout<<"csma "<<this->getNode()->GetId()<<" Time: "<<Simulator::Now().GetMilliSeconds()<<std::endl;
 	     m_txop->Queue (packet, hdr);
 	  }
-
     }
 }
 
@@ -295,9 +296,9 @@ OcbWifiMac::Receive (Ptr<Packet> packet, const WifiMacHeader *hdr)
   NS_LOG_FUNCTION (this << packet << hdr);
   NS_ASSERT (!hdr->IsCtl ());
   //NS_ASSERT (hdr->GetAddr3 () == WILDCARD_BSSID);
-  //std::cout<<"1"<<std::endl;
   Mac48Address from = hdr->GetAddr2 ();
   Mac48Address to = hdr->GetAddr1 ();
+  //std::cout<<"1"<<std::endl;
 
   if (m_stationManager->IsBrandNew (from))
     {

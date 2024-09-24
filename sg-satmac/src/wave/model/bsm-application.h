@@ -26,6 +26,8 @@
 #include "ns3/wave-bsm-stats.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/internet-stack-helper.h"
+#include "ns3/wifi-net-device.h"
+#include "ns3/MacLayerController.h"
 
 namespace ns3 {
 /**
@@ -100,6 +102,7 @@ public:
   */
   static int wavePort;
 
+
 protected:
   virtual void DoDispose (void);
 
@@ -150,7 +153,8 @@ private:
    * \param id the id of the desired net device
    * \return ptr to the desired net device
    */
-  Ptr<NetDevice> GetNetDevice (int id);
+  Ptr<WifiNetDevice> GetNetDevice (int id);
+
 
   Ptr<WaveBsmStats> m_waveBsmStats; ///< BSM stats
   /// tx safety range squared, for optimization
@@ -178,6 +182,13 @@ private:
   Time m_prevTxDelay; ///< previous transmit delay
 
   std::vector<NetDeviceContainer> txGroups;
+  Ptr<MacLayerController> m_macLayerController;
+  Ptr<WifiNetDevice> tdmaDevice;
+  Ptr<WifiNetDevice> csmaDevice;
+  Ptr<Socket> tdmaSocket;
+  Ptr<Socket> csmaSocket;
+
+
 };
 
 } // namespace ns3

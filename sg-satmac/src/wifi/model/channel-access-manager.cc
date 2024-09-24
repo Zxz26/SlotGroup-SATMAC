@@ -299,6 +299,7 @@ ChannelAccessManager::RequestAccess (Ptr<Txop> state, bool isCfPeriod)
   // If currently transmitting; end of transmission (ACK or no ACK) will cause
   // a later access request if needed from EndTxNoAck, GotAck, or MissedAck
   Time lastTxEnd = m_lastTxStart + m_lastTxDuration;
+  //std::cout<<lastTxEnd.GetMicroSeconds()<<std::endl;
   if (lastTxEnd > Simulator::Now ())
     {
       NS_LOG_DEBUG ("Internal collision (currently transmitting)");

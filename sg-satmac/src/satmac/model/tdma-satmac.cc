@@ -4,10 +4,10 @@
 #include "ns3/enum.h"
 #include "ns3/log.h"
 #include "ns3/simulator.h"
-#include "ns3/tdma-satmac.h"
-#include "ns3/tdma-mac.h"
-#include "ns3/tdma-mac-low.h"
-#include "ns3/satmac-packet.h"
+#include "tdma-satmac.h"
+#include "tdma-mac.h"
+#include "tdma-mac-low.h"
+#include "satmac-packet.h"
 #include "ns3/abort.h"
 #include "ns3/integer.h"
 #include "ns3/double.h"
@@ -21,9 +21,13 @@
 //#include "ns3/random-variable-stream.h"
 //#include "ns3/rng-seed-manager.h"
 
-#include "ns3/ocb-wifi-mac.h"
-#include "ns3/wifi-net-device.h"
-#include <list>
+#include "ns3/node-list.h"
+#include "ns3/ipv4.h"
+#include "ns3/ipv4-interface.h"
+#include "ns3/arp-cache.h"
+#include "MacLayerController.h"
+
+
 
 NS_LOG_COMPONENT_DEFINE ("TdmaSatmac");
 
@@ -84,7 +88,7 @@ int TdmaSatmac::GetDefaultAdjEnable(void)
 {
   return 1;
 }
-int TdmaSatmac::GetDefaultAdjFrameEnable(void) 
+int TdmaSatmac::GetDefaultAdjFrameEnable(void)
 {
   return 1;
 }
@@ -268,8 +272,8 @@ TdmaSatmac::TdmaSatmac ()
   choose_bch_random_switch_ = 1;
   slot_adj_candidate_ = -1;
 
-
   vemac_mode_ = 0;
+
 
 //  frameadj_cut_ratio_ths_ = 0.4;
 //  frameadj_cut_ratio_ehs_ = 0.6;
@@ -293,6 +297,7 @@ TdmaSatmac::Start (void)
   total_slot_count_ = 0;
   slot_count_ = 0;
   slot_num_ = (slot_count_+1)% m_frame_len; //slot_num_初始化为当前的下一个时隙。
+
   global_psf = 0;
   collected_fi_ = new Frame_info(512);
   collected_fi_->sti = this->global_sti;
@@ -312,7 +317,6 @@ TdmaSatmac::Start (void)
   recv_fi_count_ = 0;
   send_fi_count_ = 0;
 
-
 //  std::cout<<"Start time:" << Simulator::Now().GetMicroSeconds() << "ID: " << this->GetGlobalSti() << std::endl;
 //NanoSeconds
 
@@ -322,19 +326,8 @@ TdmaSatmac::Start (void)
   location_initialed_ = false;
   direction_initialed_ = false;
   //std::cout<<"Start time:" << m_start_delay_frames << " ID: " << this->GetGlobalSti() << std::endl;
-
-
-  m_slot_group = -1;
-  total_slot_group_count = -1;
-  slot_group_count = 0;
-  isNeedSg = false;
-
-
-
   Simulator::Schedule (MilliSeconds (starttime),&TdmaSatmac::slotHandler, this);
-
   //slotHandler();
-  Simulator::Schedule (MilliSeconds (starttime * 4),&TdmaSatmac::slotgroupHandler, this);
 }
 
 void
@@ -508,7 +501,6 @@ TdmaSatmac::Queue (Ptr<const Packet> packet, const WifiMacHeader &hdr)
     {
       NotifyTxDrop (packet);
     }
-
 
 #ifdef PRINT_SLOT_STATUS
   printf("I'm node %d, in slot %d, I Queue a data packet\n", global_sti, slot_count_);
@@ -821,7 +813,6 @@ void TdmaSatmac::clear_FI(Frame_info *fi){
 		delete[] fi->slot_describe;
 	}
 	fi->slot_describe = new slot_tag[512];
-
 }
 
 /*
@@ -843,7 +834,6 @@ Frame_info * TdmaSatmac::get_new_FI(int slot_count){
 	return newFI;
 }
 
-/*要改*/
 void TdmaSatmac::print_slot_status(void) {
 	slot_tag *fi_local = this->collected_fi_->slot_describe;
 	int i, count;
@@ -1023,19 +1013,15 @@ int TdmaSatmac::determine_BCH(bool strict){
 void
 TdmaSatmac::Receive (Ptr<Packet> packet, const WifiMacHeader *hdr)
 {
-  //std::cout<<"1"<<std::endl;
   if (hdr->IsSatmacData())
   	{
 	  if (m_start_delay_frames > 0)
 		  return;
       recvFI(packet);
       recv_fi_count_++;
-  	} else
-  	{
-  	  //std::cout<<"2"<<std::endl;
-  	  ForwardUp (packet, hdr);
   	}
-
+  else
+      ForwardUp (packet, hdr);
 }
 
 void
@@ -1062,6 +1048,8 @@ void TdmaSatmac::recvFI(Ptr<Packet> p){
 	satmac::FiHeader fihdr;
 	//unsigned char buffer = p->accessdata();
 	p->RemoveHeader(fihdr);
+//TODO
+
 
 	value = fihdr.decode_value(byte_pos,bit_pos,BIT_LENGTH_STI);
 	tmp_sti = (unsigned int)value;
@@ -1120,7 +1108,6 @@ void TdmaSatmac::recvFI(Ptr<Packet> p){
 	return;
 }
 
-/*要改*/
 void TdmaSatmac::merge_fi(Frame_info* base, Frame_info* append, Frame_info* decision){
 	int count=0;
 	slot_tag *fi_local_ = base->slot_describe;
@@ -1423,8 +1410,6 @@ void TdmaSatmac::fade_received_fi_list(int time){
 		}
 	}
 }
-
-
 void TdmaSatmac::synthesize_fi_list(){
 	Frame_info * processing_fi = received_fi_list_;
 	int count;
@@ -1497,7 +1482,6 @@ void TdmaSatmac::synthesize_fi_list(){
 
 }
 
-/*要改*/
 bool TdmaSatmac::adjust_is_needed(int slot_num) {
 	slot_tag *fi_collection = this->collected_fi_->slot_describe;
 	int i,free_count_ths = 0, free_count_ehs = 0;
@@ -1526,7 +1510,7 @@ bool TdmaSatmac::adjust_is_needed(int slot_num) {
 		return false;
 }
 
-/*要改*/
+
 void TdmaSatmac::adjFrameLen()
 {
 	if (!adj_frame_ena_)
@@ -1592,7 +1576,6 @@ TdmaSatmac::CalculateTxTime (Ptr<const Packet> packet)
   return m_bps.CalculateBytesTxTime (packet->GetSize ());
 }
 
-/*要改，换tag*/
 void TdmaSatmac::generate_send_FI_packet(){
 #ifdef PRINT_SLOT_STATUS
 
@@ -1612,6 +1595,8 @@ void TdmaSatmac::generate_send_FI_packet(){
 	Ptr<Packet> p = Create<Packet> ();
 	satmac::FiHeader fihdr(m_frame_len, global_sti, fi_local_);
 	p->AddHeader (fihdr);
+
+
 	WifiMacHeader wifihdr;
 	wifihdr.SetNoMoreFragments();
 	wifihdr.SetType (WIFI_MAC_SATMAC);
@@ -1710,9 +1695,8 @@ void
 TdmaSatmac::StartTransmission (uint64_t transmissionTimeUs)
 {
   NS_LOG_DEBUG (transmissionTimeUs << " usec");
+
   Time totalTransmissionSlot = MicroSeconds (transmissionTimeUs);
-
-
   if (m_queue->IsEmpty ())
     {
       NS_LOG_DEBUG ("queue empty");
@@ -1757,13 +1741,15 @@ TdmaSatmac::StartTransmission (uint64_t transmissionTimeUs)
   }
 }
 
+
+
 void
 TdmaSatmac::SendPacketDown (Time remainingTime)
 {
   WifiMacHeader header;
   Ptr<const Packet> packet = m_queue->Dequeue (&header);
-
-  if (m_wifimaclow_flag)
+  //std::cout<<this->getNodePtr()->GetId()<<" Time:  "<<Simulator::Now().GetMicroSeconds()<<std::endl;
+  	if (m_wifimaclow_flag)
   {
 	  MacLowTransmissionParameters params;
 //	  params.DisableOverrideDurationId ();
@@ -1777,16 +1763,15 @@ TdmaSatmac::SendPacketDown (Time remainingTime)
 	  params.DisableAck ();
 //	  params.DisableNextData ();
 	  header.SetDuration(MicroSeconds(m_lastpktUsedTime));
+	  //std::cout<<"1"<<std::endl;
 	  m_wifimaclow->StartTransmission (packet,
 	                                 &header,
 	                                 params,
 	                                 m_transmissionListener);
-//	  std::cout<<"satmac send a pkt Size "<<m_lastpktUsedTime <<" fromSti = " << this->GetGlobalSti()<<" to addr "<<header.GetAddr1 () << " from addr "<< header.GetAddr2 ()<< " Time "<< Simulator::Now().GetMicroSeconds()<< std::endl;
-  } else
-  {
-	  m_low->StartTransmission (packet, &header);
-  }
 
+	//  std::cout<<"satmac send a pkt Size "<<m_lastpktUsedTime <<" fromSti = " << this->GetGlobalSti()<<" to addr "<<header.GetAddr1 () << " from addr "<< header.GetAddr2 ()<< " Time "<< Simulator::Now().GetMicroSeconds()<< std::endl;
+  } else
+	  m_low->StartTransmission (packet, &header);
 //  TxQueueStart (0);
   NotifyTx (packet);
 //  TxQueueStart (0);
@@ -1799,7 +1784,6 @@ TdmaSatmac::SendPacketDown (Time remainingTime)
 	  StartTransmission (remainingTime.GetMicroSeconds ());
 }
 
-/*要改*/
 double TdmaSatmac::get_channel_utilization()
 {
 	slot_tag *fi_local_= this->collected_fi_->slot_describe;
@@ -1834,10 +1818,14 @@ TdmaSatmac::slotHandler ()
   // Restart timer for next slot.
   total_slot_count_ = total_slot_count_+1;
   slot_count_ = total_slot_count_ %  m_frame_len;
+  Simulator::Schedule (GetSlotTime(), &TdmaSatmac::slotHandler, this);
 
-  slotHandlerEvent = Simulator::Schedule (GetSlotTime(), &TdmaSatmac::slotHandler, this);
+//  for(int i = 0;i < m_frame_len; i++)
+//  {
+//	  std::cout<<"slot "<<i<<" node "<<fi_collection[i].sti-1<<std::endl;
+//  }
 
- // std::cout<<"Start time:" << Simulator::Now().GetMicroSeconds() << std::endl;
+//  std::cout<<"Start time:" << Simulator::Now().GetMicroSeconds() << std::endl;
 
   if (vemac_mode_ == 1 && location_initialed_ == false) {
 		Mobility_ = m_nodePtr->GetObject<MobilityModel> ();
@@ -1914,8 +1902,25 @@ TdmaSatmac::slotHandler ()
 
   NS_ASSERT_MSG (slot_num_ <= m_frame_len, "FATAL! slot_num_ > m_frame_len" << this->GetGlobalSti());
 
-  if (slot_count_ == slot_num_)
+  if(this->getNodePtr()->GetId() == 0 && slot_count_ == 1)
   {
+	  Ptr<MacLayerController> macController = this->getNodePtr()->GetObject<MacLayerController>();
+	  Ptr<WifiNetDevice> csma = DynamicCast<WifiNetDevice>(getNodePtr()->GetDevice(1));
+	  macController->SwitchToDevice(csma);
+	  return;
+  }
+  if(this->getNodePtr()->GetId() == 0 && slot_count_ == 2)
+  {
+	  Ptr<MacLayerController> macController = this->getNodePtr()->GetObject<MacLayerController>();
+	  Ptr<WifiNetDevice> tdma = DynamicCast<WifiNetDevice>(getNodePtr()->GetDevice(0));
+	  macController->SwitchToDevice(tdma);
+	  return;
+  }
+
+
+
+
+  if (slot_count_ == slot_num_){
 	  frame_count_++;
 
 	  if (m_start_delay_frames > 0) {
@@ -1961,7 +1966,6 @@ TdmaSatmac::slotHandler ()
 		  fi_collection = this->collected_fi_->slot_describe;
 		  synthesize_fi_list();
 		  slot_num_ = determine_BCH(0);
-
 		  if(slot_num_ < 0){
 			  node_state_ = NODE_LISTEN;
 			  slot_num_ = slot_count_;
@@ -2259,104 +2263,7 @@ TdmaSatmac::slotHandler ()
   }
 
   return;
-}
 
-Ptr<OcbWifiMac> TdmaSatmac::GetOcbInstance()
-{
-	Ptr<Node> node = getNodePtr();
-	Ptr<NetDevice> device = node->GetDevice(0);
-	Ptr<WifiNetDevice> wifiDevice = DynamicCast<WifiNetDevice>(device);
-	Ptr<OcbWifiMac> ocbMac = DynamicCast<OcbWifiMac>(wifiDevice->GetMac());
-	return ocbMac;
-}
-
-void TdmaSatmac::StartSlotHandler()
-{
-    if (!slotHandlerEvent.IsRunning())
-    {
-        slotHandlerEvent = Simulator::Schedule(GetSlotTime(), &TdmaSatmac::slotHandler, this);
-    }
-}
-
-void TdmaSatmac::StopSlotHandler()
-{
-    if (slotHandlerEvent.IsRunning()) {
-        Simulator::Cancel(slotHandlerEvent); // 取消调度
-    }
-}
-
-void TdmaSatmac::slotgroupHandler()
-{
-	total_slot_group_count = total_slot_group_count + 1;
-	slot_group_count = total_slot_group_count % (m_frame_len / 4);
-
-	slotgroupHandlerEvent = Simulator::Schedule (GetSlotTime() * 4, &TdmaSatmac::slotgroupHandler, this);
-
-	SlotGroupStart();
-	if(slot_group_count == m_slot_group)
-	{
-		StartMidSlotListening();
-	}
-    // 在时隙组结束前调度结束函数
-	Simulator::Schedule(GetSlotTime() * 4 - NanoSeconds(1), &TdmaSatmac::SlotGroupEnd, this);
-
-}
-
-void TdmaSatmac::SlotGroupStart()
-{
-    NS_LOG_FUNCTION(this << "Slot group start: " << slot_group_count);
-    // 时隙组开始时的操作
-    if (slot_group_count == 2 && node_state_ == NODE_WORK_FI)
-    {
-        if (this->getNodePtr()->GetId() < 2)
-        {
-            m_slot_group = 0;
-            isNeedSg = true;
-        }
-    }
-}
-
-void TdmaSatmac::StartMidSlotListening()
-{
-    // 启动持续监听操作
-    midSlotListeningEvent = Simulator::ScheduleNow(&TdmaSatmac::MidSlotListening, this);
-}
-
-void TdmaSatmac::MidSlotListening()
-{
-    NS_LOG_FUNCTION(this << "Mid slot listening: " << slot_group_count);
-    // 在时隙组的中间时间进行持续操作
-    if (isNeedSg)
-    {
-        Ptr<OcbWifiMac> ocb = GetOcbInstance();
-        WifiMacHeader header;
-        if(m_queue->IsEmpty())
-        {
-        	return;
-        }
-        while (!m_queue->IsEmpty())
-        {
-            Ptr<const Packet> packet = m_queue->Dequeue(&header);
-            ocb->SlotGroupEnque(packet, header);
-            StopSlotHandler();
-        }
-    }
-
-    // 持续调度下一个监听操作（例如每 0.5 个时隙进行一次）
-    midSlotListeningEvent = Simulator::Schedule(GetSlotTime() * 0.5, &TdmaSatmac::MidSlotListening, this);
-}
-
-void TdmaSatmac::SlotGroupEnd()
-{
-    NS_LOG_FUNCTION(this << "Slot group end: " << slot_group_count);
-    // 停止中间时间的监听操作
-    if (midSlotListeningEvent.IsRunning())
-    {
-        Simulator::Cancel(midSlotListeningEvent);
-    }
-    // 时隙组结束时的操作
-    StartSlotHandler();
-    // 其他清理操作
 }
 
 } // namespace ns3

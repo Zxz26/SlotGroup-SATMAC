@@ -64,7 +64,6 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("v2x_communication_mode_4");
 
-
 // Output 
 std::string simtime = "log_simtime_v2x.csv"; 
 std::string deltatime_file = "log_deltatime.txt";
@@ -90,7 +89,7 @@ uint16_t lenCam = 100;  // Length of CAM message in bytes [50-300 Bytes]
 int testing = 1;
 
 int m_tdma_enable = 1;
-int m_tdma_slottime_us = 1000;
+int m_tdma_slottime_us = 8000;
 
 // Initialize some values
 // NOTE: commandline parser is currently (05.04.2019) not working for uint8_t (Bug 2916)
@@ -103,8 +102,8 @@ NetDeviceContainer tdmaDataDevices;
 NetDeviceContainer csmaDataDevices;
 Ipv4InterfaceContainer tdmaIpInterfaces;
 
-uint16_t simTime = 10;                 // Simulation time in seconds
-uint32_t numVeh = 10;                  // Number of vehicles
+uint16_t simTime = 5;                 // Simulation time in seconds
+uint32_t numVeh = 3;                  // Number of vehicles
 double txPower = 6.7;                // Transmission power in dBm
 int testdistance = 150;
 
@@ -113,9 +112,13 @@ double frameadj_cut_ratio_ehs_ = 0.6;
 double frameadj_exp_ratio_ = 0.9;
 int adjEna = 1;
 int adjFrameEna =1;
-int framelen = 64;
-int framelenUp = 128;
-int framelenLow = 32;
+//int framelen = 64;
+//int framelenUp = 128;
+//int framelenLow = 32;
+
+int framelen = 8;
+int framelenUp = 8;
+int framelenLow = 8;
 
 int m_wavePacketSize = 200;
 double m_waveInterval = 0.1;
@@ -349,31 +352,10 @@ void config()
 
 	YansWifiChannelHelper wifiChannel2;
 	wifiChannel2.SetPropagationDelay ("ns3::ConstantSpeedPropagationDelayModel");
-//	if (m_lossModel == 3)
-//	{
-//	  // two-ray requires antenna height (else defaults to Friss)
-//	  wifiChannel2.AddPropagationLoss (m_lossModelName, "Frequency", DoubleValue (freq), "HeightAboveZ", DoubleValue (1.5));
-//	}
-//	else
-//	{
-//	  wifiChannel2.AddPropagationLoss (m_lossModelName, "Frequency", DoubleValue (freq));
-//	}
+	Config::SetDefault ("ns3::CniUrbanmicrocellPropagationLossModel::Frequency", DoubleValue(5800e6));
+	Config::SetDefault ("ns3::CniUrbanmicrocellPropagationLossModel::LosEnabled", BooleanValue(true));
+	wifiChannel2.AddPropagationLoss ("ns3::CniUrbanmicrocellPropagationLossModel");
 
-
-//	wifiChannel2.AddPropagationLoss ("ns3::ObstacleShadowingPropagationLossModel", "MaxDistance", UintegerValue(1000));
-//		Config::SetDefault ("ns3::CniUrbanmicrocellPropagationLossModel::Frequency", DoubleValue(5800e6));
-//		wifiChannel2.AddPropagationLoss ("ns3::CniUrbanmicrocellPropagationLossModel");
-
-//	if (m_loadBuildings == 1) {
-//		wifiChannel2.AddPropagationLoss ("ns3::ObstacleShadowingPropagationLossModel", "MaxDistance", UintegerValue(1000));
-//		wifiChannel2.AddPropagationLoss ("ns3::NakagamiPropagationLossModel");
-//	}
-//	else {
-//		//wifiChannel2.AddPropagationLoss ("ns3::NakagamiPropagationLossModel");
-		Config::SetDefault ("ns3::CniUrbanmicrocellPropagationLossModel::Frequency", DoubleValue(5800e6));
-		Config::SetDefault ("ns3::CniUrbanmicrocellPropagationLossModel::LosEnabled", BooleanValue(true));
-		wifiChannel2.AddPropagationLoss ("ns3::CniUrbanmicrocellPropagationLossModel");
-//	}
 	Ptr<YansWifiChannel> channel = wifiChannel2.Create ();
 	YansWifiPhyHelper wifiPhy2 =  YansWifiPhyHelper::Default ();
 	wifiPhy2.SetChannel (channel);
@@ -395,10 +377,35 @@ void config()
 
 	tdmaDataDevices = wifi80211p.Install (wifiPhy2, wifi80211pMac, allNodesCon, m_tdma_enable);
 
+	// CSMA设备的物理层配置
+	YansWifiChannelHelper csmaWifiChannel;
+	csmaWifiChannel.SetPropagationDelay("ns3::ConstantSpeedPropagationDelayModel");
+	csmaWifiChannel.AddPropagationLoss("ns3::CniUrbanmicrocellPropagationLossModel", "Frequency", DoubleValue(5800e6), "LosEnabled", BooleanValue(true));
+
+	Ptr<YansWifiChannel> csmaChannel = csmaWifiChannel.Create();
+	YansWifiPhyHelper csmaWifiPhy = YansWifiPhyHelper::Default();
+	csmaWifiPhy.SetChannel(csmaChannel);
+	csmaWifiPhy.SetPcapDataLinkType(YansWifiPhyHelper::DLT_IEEE802_11);
+	csmaWifiPhy.Set("TxPowerStart", DoubleValue(txPower));
+	csmaWifiPhy.Set("TxPowerEnd", DoubleValue(txPower));
+	csmaWifiPhy.Set("EnergyDetectionThreshold", DoubleValue(-85)); // 设置检测阈值
+
+	// 设置CSMA的802.11p MAC和PHY
+	NqosWaveMacHelper csmaWaveMac = NqosWaveMacHelper::Default();
+	Wifi80211pHelper csmaWifi = Wifi80211pHelper::Default();
+	csmaWifi.SetRemoteStationManager("ns3::ConstantRateWifiManager",
+	                                 "DataMode", StringValue("OfdmRate12MbpsBW10MHz"),
+	                                 "ControlMode", StringValue("OfdmRate12MbpsBW10MHz"),
+	                                 "NonUnicastMode", StringValue("OfdmRate12MbpsBW10MHz"));
+
+	// 为CSMA设备安装物理层和MAC层
+	csmaDataDevices = csmaWifi.Install(csmaWifiPhy, csmaWaveMac, allNodesCon);
+
+
+
 	if (m_tdma_enable) {
 		//Config TDMA parameters.
 		satmac_par_config();
-
 	}
 	//InstallInternetStack
     // Install the IP stack on the UEs
@@ -406,9 +413,53 @@ void config()
     InternetStackHelper internet;
     internet.Install (allNodesCon);
 
-	Ipv4AddressHelper addressAdhocData;
-	addressAdhocData.SetBase ("10.1.0.0", "255.255.0.0");
-	tdmaIpInterfaces = addressAdhocData.Assign (tdmaDataDevices);
+    Ipv4AddressHelper addressAdhocData;
+    addressAdhocData.SetBase("10.1.0.0", "255.255.0.0");
+    tdmaIpInterfaces = addressAdhocData.Assign (tdmaDataDevices);
+
+    // 为 CSMA 设备手动分配与 TDMA 相同的 IP 地址
+    	for (uint32_t i = 0; i < allNodesCon.GetN(); ++i)
+    	{
+    	    Ptr<Node> node = allNodesCon.Get(i);
+
+    	    // 获取 TDMA 接口的 IP 地址
+    	    Ipv4Address tdmaIp = tdmaIpInterfaces.GetAddress(i);
+
+    	    // 获取节点的 Ipv4 对象
+    	    Ptr<Ipv4> ipv4 = node->GetObject<Ipv4>();
+    	    Ptr<NetDevice> csmaDevice = csmaDataDevices.Get(i);
+
+    	    // 获取 CSMA 设备的接口索引
+    	    int32_t ifIndex = ipv4->GetInterfaceForDevice(csmaDevice);
+    	    if (ifIndex == -1)
+    	    {
+    	        ifIndex = ipv4->AddInterface(csmaDevice);
+    	    }
+
+    	    // 为 CSMA 设备分配与 TDMA 相同的 IP 地址
+    	    Ipv4InterfaceAddress ipv4Addr = Ipv4InterfaceAddress(tdmaIp, Ipv4Mask("255.255.0.0"));
+    	    ipv4->AddAddress(ifIndex, ipv4Addr);
+    	    ipv4->SetMetric(ifIndex, 1); // 可以根据需要设置优先级
+    	    ipv4->SetUp(ifIndex);
+    	}
+
+    	for (NodeContainer::Iterator i = allNodesCon.Begin(); i != allNodesCon.End(); ++i) {
+    	    Ptr<Node> node = *i;
+    	    // 获取当前节点的TDMA和CSMA设备
+
+    	    Ptr<WifiNetDevice> tdmaDevice = DynamicCast<WifiNetDevice>(tdmaDataDevices.Get(i - allNodesCon.Begin()));
+    	    Ptr<WifiNetDevice> csmaDevice = DynamicCast<WifiNetDevice>(csmaDataDevices.Get(i - allNodesCon.Begin()));
+    	    NS_ASSERT(tdmaDevice != nullptr);
+    	    NS_ASSERT(csmaDevice != nullptr);
+    	    // 创建并初始化 MacLayerController
+    	    Ptr<MacLayerController> macController = CreateObject<MacLayerController>();
+    	    macController->Initialize(tdmaDevice, csmaDevice, node);
+    	    node->AggregateObject(macController);
+    	    // 打印调试信息
+    	    //std::cout << "Node ID: " << node->GetId() << " MacLayerController: " << macController << std::endl;
+    	}
+
+
 
     // Create Ns2MobilityHelper with the specified trace log file as parameter
 //    Ns2MobilityHelper ns2 = Ns2MobilityHelper (m_traceFile);
@@ -418,33 +469,24 @@ void config()
     {
     	std::cout<<"@@@@@@TESTING MODE@@@@@@" << std::endl;
 		// Install constant random positions
-		MobilityHelper mobVeh;
-	    // 设置边界为100x100的正方形区域
-		mobVeh.SetPositionAllocator ("ns3::RandomRectanglePositionAllocator",
-		                             "X", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=250.0]"),
-		                             "Y", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=250.0]"));
-		// 配置车辆的移动模型，使用RandomWaypointMobilityModel
-		mobVeh.SetMobilityModel ("ns3::RandomWaypointMobilityModel",
-		                        "Speed", StringValue ("ns3::UniformRandomVariable[Min=10.0|Max=30.0]"),  // 10-30 m/s 车辆速度
-		                        "Pause", StringValue ("ns3::ConstantRandomVariable[Constant=2.0]"),  // 停顿2秒
-		                        "PositionAllocator", StringValue ("ns3::RandomRectanglePositionAllocator"));
-		// 为所有节点安装移动模型
-		mobVeh.Install (allNodesCon);
-
-//		MobilityHelper mobVeh;
-//		mobVeh.SetMobilityModel("ns3::ConstantPositionMobilityModel");
-//		Ptr<ListPositionAllocator> staticVeh[allNodesCon.GetN()];
-//		for (uint16_t i=0; i<allNodesCon.GetN();i++)
-//		{
-//			staticVeh[i] = CreateObject<ListPositionAllocator>();
-//			Ptr<UniformRandomVariable> rand = CreateObject<UniformRandomVariable> ();
-//			int x = rand->GetValue (0,2000);
-//			int y = rand->GetValue (0,2000);
-//			double z = 0;
-//			staticVeh[i]->Add(Vector(x,y,z));
-//			mobVeh.SetPositionAllocator(staticVeh[i]);
-//			mobVeh.Install(allNodesCon.Get(i));
-//		}
+        MobilityHelper mobVeh;
+    	// 创建一个 ListPositionAllocator，手动指定10个节点的位置
+    	Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
+    	positionAlloc->Add (Vector (10.0, 20.0, 0.0));    // 节点1的位置
+    	positionAlloc->Add (Vector (30.0, 40.0, 0.0));    // 节点2的位置
+    	positionAlloc->Add (Vector (50.0, 60.0, 0.0));    // 节点3的位置
+    	positionAlloc->Add (Vector (70.0, 80.0, 0.0));    // 节点4的位置
+    	positionAlloc->Add (Vector (90.0, 100.0, 0.0));   // 节点5的位置
+    	positionAlloc->Add (Vector (110.0, 120.0, 0.0));  // 节点6的位置
+    	positionAlloc->Add (Vector (130.0, 140.0, 0.0));  // 节点7的位置
+    	positionAlloc->Add (Vector (150.0, 160.0, 0.0));  // 节点8的位置
+    	positionAlloc->Add (Vector (170.0, 180.0, 0.0));  // 节点9的位置
+    	positionAlloc->Add (Vector (190.0, 200.0, 0.0));  // 节点10的位置
+    	mobVeh.SetPositionAllocator (positionAlloc);
+    	// 设置移动模型为 StaticMobilityModel，节点将保持静止
+    	mobVeh.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+    	// 为所有节点安装移动模型
+    	mobVeh.Install (allNodesCon);
     } else {
 
 //    	if (numVeh <=201)
@@ -589,4 +631,3 @@ void CheckThroughput ()
 
   */
 }
-

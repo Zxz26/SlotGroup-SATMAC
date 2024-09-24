@@ -296,6 +296,7 @@ void
 Txop::Queue (Ptr<const Packet> packet, const WifiMacHeader &hdr)
 {
   NS_LOG_FUNCTION (this << packet << &hdr);
+  //std::cout<<"txop queue a pkt at "<<Simulator::Now().GetMicroSeconds()<<std::endl;
   m_stationManager->PrepareForQueue (hdr.GetAddr1 (), &hdr, packet);
   m_queue->Enqueue (Create<WifiMacQueueItem> (packet, hdr));
   StartAccessIfNeeded ();
@@ -478,6 +479,7 @@ Txop::NotifyAccessGranted (void)
       m_currentParams.DisableRts ();
       m_currentParams.DisableAck ();
       m_currentParams.DisableNextData ();
+      //std::cout<<"tx broadcast at "<<Simulator::Now().GetMicroSeconds()<<std::endl;
       NS_LOG_DEBUG ("tx broadcast");
       GetLow ()->StartTransmission (m_currentPacket, &m_currentHdr, m_currentParams, this);
     }
@@ -835,5 +837,6 @@ Txop::HasTxop (void) const
 {
   return false;
 }
+
 
 } //namespace ns3

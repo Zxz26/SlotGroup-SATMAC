@@ -29,6 +29,7 @@
 
 #include "bsm-timetag.h"
 
+
 NS_LOG_COMPONENT_DEFINE ("BsmApplication");
 
 namespace ns3 {
@@ -99,17 +100,34 @@ void BsmApplication::StartApplication () // Called at time specified by Start
 
   TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
 
-  // every node broadcasts WAVE BSM to potentially all other nodes
-  Ptr<Socket> recvSink = Socket::CreateSocket (GetNode (m_nodeId), tid);
-  recvSink->SetRecvCallback (MakeCallback (&BsmApplication::ReceiveWavePacket, this));
-  InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), wavePort);
-  recvSink->BindToNetDevice (GetNetDevice (m_nodeId));
-  recvSink->Bind (local);
-  recvSink->SetAllowBroadcast (true);
+  // Create two sockets for TDMA and CSMA devices
+    tdmaDevice = DynamicCast<WifiNetDevice>(m_node->GetDevice(0)); // TDMA设备
+    csmaDevice = DynamicCast<WifiNetDevice>(m_node->GetDevice(1)); // CSMA设备
 
-  // dest is broadcast address
-  InetSocketAddress remote = InetSocketAddress (Ipv4Address ("255.255.255.255"), wavePort);
-  recvSink->Connect (remote);
+    tdmaSocket = Socket::CreateSocket(m_node, tid);
+    csmaSocket = Socket::CreateSocket(m_node, tid);
+
+    // Bind TDMA and CSMA sockets to their respective devices
+    tdmaSocket->BindToNetDevice(tdmaDevice);
+    csmaSocket->BindToNetDevice(csmaDevice);
+
+    // Set up receive callbacks for both sockets
+    tdmaSocket->SetRecvCallback(MakeCallback(&BsmApplication::ReceiveWavePacket, this));
+    csmaSocket->SetRecvCallback(MakeCallback(&BsmApplication::ReceiveWavePacket, this));
+
+    // Bind the sockets to addresses and allow broadcast
+    InetSocketAddress local = InetSocketAddress(Ipv4Address::GetAny(), wavePort);
+    tdmaSocket->Bind(local);
+    tdmaSocket->SetAllowBroadcast(true);
+
+    csmaSocket->Bind(local);
+    csmaSocket->SetAllowBroadcast(true);
+
+    // Set up the destination address (broadcast) for each socket
+    InetSocketAddress remote = InetSocketAddress(Ipv4Address("255.255.255.255"), wavePort);
+    tdmaSocket->Connect(remote);
+    csmaSocket->Connect(remote);
+
 
   // Transmission start time for each BSM:
   // We assume that the start transmission time
@@ -171,10 +189,28 @@ void BsmApplication::StartApplication () // Called at time specified by Start
   m_prevTxDelay = txDelay;
 
   Time txTime = startTime + tDrift + txDelay;
-  // schedule transmission of first packet
-  Simulator::ScheduleWithContext (recvSink->GetNode ()->GetId (),
-                                  txTime, &BsmApplication::GenerateWaveTraffic, this,
-                                  recvSink, m_wavePacketSize, m_numWavePackets, waveInterPacketInterval, m_nodeId);
+
+  // 根据当前设备使用哪个socket来发送
+  //if(m_nodeId == 0)
+  if(m_macLayerController->GetCurrentDevice() == tdmaDevice)
+  {
+	  m_macLayerController->DisableDevice(csmaDevice);
+	  m_macLayerController->EnableDevice(tdmaDevice);
+      // 使用TDMA设备和socket发送数据包
+      Simulator::ScheduleWithContext(tdmaSocket->GetNode()->GetId(),
+                                     txTime, &BsmApplication::GenerateWaveTraffic, this,
+                                     tdmaSocket, m_wavePacketSize, m_numWavePackets, waveInterPacketInterval, m_nodeId);
+  }
+  else
+  {
+	  m_macLayerController->DisableDevice(tdmaDevice);
+	  m_macLayerController->EnableDevice(csmaDevice);
+      // 使用CSMA设备和socket发送数据包
+      Simulator::ScheduleWithContext(csmaSocket->GetNode()->GetId(),
+                                     txTime, &BsmApplication::GenerateWaveTraffic, this,
+                                     csmaSocket, m_wavePacketSize, m_numWavePackets, waveInterPacketInterval, m_nodeId);
+  }
+
 }
 
 void BsmApplication::StopApplication () // Called at time specified by Stop
@@ -219,6 +255,7 @@ BsmApplication::Setup (Ipv4InterfaceContainer & i,
   m_adhocTxInterfaces = &i;
   m_nodeId = nodeId;
   m_txMaxDelay = txMaxDelay;
+  m_macLayerController = m_node->GetObject<MacLayerController>();
 }
 
 void
@@ -227,7 +264,6 @@ BsmApplication::GenerateWaveTraffic (Ptr<Socket> socket, uint32_t pktSize,
                                      uint32_t sendingNodeId)
 {
   NS_LOG_FUNCTION (this);
-
   // more packets to send?
   if (pktCount > 0)
     {
@@ -248,8 +284,8 @@ BsmApplication::GenerateWaveTraffic (Ptr<Socket> socket, uint32_t pktSize,
     	  tag.setSendingTimeUs(Simulator::Now().GetMicroSeconds());
     	  Ptr<Packet> pkt = Create<Packet> (pktSize);
     	  pkt->AddPacketTag(tag);
-    	  // send it!
-          socket->Send (pkt);
+	      // send it!
+	      socket->Send(pkt);
           // count it
           m_waveBsmStats->IncTxPktCount ();
           m_waveBsmStats->IncTxByteCount (pktSize);
@@ -310,10 +346,19 @@ BsmApplication::GenerateWaveTraffic (Ptr<Socket> socket, uint32_t pktSize,
       // plus some new [0..10] ms tx delay
       Time txTime = pktInterval - m_prevTxDelay + txDelay;
       m_prevTxDelay = txDelay;
+      if(m_macLayerController->GetCurrentDevice() == tdmaDevice)
+      {
+          Simulator::ScheduleWithContext (tdmaSocket->GetNode ()->GetId (),
+                                          txTime, &BsmApplication::GenerateWaveTraffic, this,
+										  tdmaSocket, pktSize, pktCount - 1, pktInterval,  tdmaSocket->GetNode ()->GetId ());
+      }
+      else
+      {
+          Simulator::ScheduleWithContext (csmaSocket->GetNode ()->GetId (),
+                                          txTime, &BsmApplication::GenerateWaveTraffic, this,
+										  csmaSocket, pktSize, pktCount - 1, pktInterval,  csmaSocket->GetNode ()->GetId ());
+      }
 
-      Simulator::ScheduleWithContext (socket->GetNode ()->GetId (),
-                                      txTime, &BsmApplication::GenerateWaveTraffic, this,
-                                      socket, pktSize, pktCount - 1, pktInterval,  socket->GetNode ()->GetId ());
     }
   else
     {
@@ -328,6 +373,7 @@ void BsmApplication::ReceiveWavePacket (Ptr<Socket> socket)
   Address senderAddr;
   while ((packet = socket->RecvFrom (senderAddr)))
     {
+	  //std::cout<<m_node->GetId()<<std::endl;
       Ptr<Node> rxNode = socket->GetNode ();
 
       if (InetSocketAddress::IsMatchingType (senderAddr))
@@ -410,16 +456,15 @@ BsmApplication::GetNode (int id)
   return node;
 }
 
-Ptr<NetDevice>
+Ptr<WifiNetDevice>
 BsmApplication::GetNetDevice (int id)
 {
   NS_LOG_FUNCTION (this);
+//  std::pair<Ptr<Ipv4>, uint32_t> interface = m_adhocTxInterfaces->Get (id);
+//  Ptr<Ipv4> pp = interface.first;
+//  Ptr<NetDevice> device = pp->GetObject<NetDevice> ();
 
-  std::pair<Ptr<Ipv4>, uint32_t> interface = m_adhocTxInterfaces->Get (id);
-  Ptr<Ipv4> pp = interface.first;
-  Ptr<NetDevice> device = pp->GetObject<NetDevice> ();
-
-  return device;
 }
+
 
 } // namespace ns3

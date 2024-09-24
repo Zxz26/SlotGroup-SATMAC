@@ -522,6 +522,7 @@ protected:
   WifiMacHeader m_currentHdr; //!< the current header
   MacLowTransmissionParameters m_currentParams; ///< current transmission parameters
   uint8_t m_fragmentNumber; //!< the fragment number
+
 };
 
 } //namespace ns3
