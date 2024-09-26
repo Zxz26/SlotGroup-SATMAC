@@ -56,6 +56,7 @@
 
 #include "ns3/wave-bsm-helper.h"
 #include "ns3/flow-monitor-helper.h"
+#include "ns3/wifi-phy-state-helper.h"
 
 //--building=1 --buildingfile=/home/wu/workspace/ns-3_c-v2x-master/src/wave/examples/9gong/buildings.xml --tracefile=/home/wu/workspace/ns-3_c-v2x-master/src/wave/examples/9gong/9gong.ns2
 //./waf --run "v2x_communication_example2 --numVeh=900 --building=0 --buildingfile=/home/wu/workspace/ns-3_c-v2x-master/src/wave/examples/newyork/buildings.xml --tracefile=/home/wu/workspace/ns-3_c-v2x-master/src/wave/examples/newyork/newyorkmobility.ns2"
@@ -89,7 +90,7 @@ uint16_t lenCam = 100;  // Length of CAM message in bytes [50-300 Bytes]
 int testing = 1;
 
 int m_tdma_enable = 1;
-int m_tdma_slottime_us = 8000;
+int m_tdma_slottime_us = 1000;
 
 // Initialize some values
 // NOTE: commandline parser is currently (05.04.2019) not working for uint8_t (Bug 2916)
@@ -103,7 +104,7 @@ NetDeviceContainer csmaDataDevices;
 Ipv4InterfaceContainer tdmaIpInterfaces;
 
 uint16_t simTime = 5;                 // Simulation time in seconds
-uint32_t numVeh = 3;                  // Number of vehicles
+uint32_t numVeh = 5;                  // Number of vehicles
 double txPower = 6.7;                // Transmission power in dBm
 int testdistance = 150;
 
@@ -112,13 +113,10 @@ double frameadj_cut_ratio_ehs_ = 0.6;
 double frameadj_exp_ratio_ = 0.9;
 int adjEna = 1;
 int adjFrameEna =1;
-//int framelen = 64;
-//int framelenUp = 128;
-//int framelenLow = 32;
+int framelen = 64;
+int framelenUp = 128;
+int framelenLow = 32;
 
-int framelen = 8;
-int framelenUp = 8;
-int framelenLow = 8;
 
 int m_wavePacketSize = 200;
 double m_waveInterval = 0.1;
@@ -314,6 +312,7 @@ void satmac_par_config(){
 	Config::Set ("/NodeList/*/DeviceList/*/$ns3::WifiNetDevice/Mac/Tdma/LPFTraceFile", StringValue(lpfoutfile));
 
 }
+
 void config()
 {
 	//double freq = 5.9e9;
@@ -380,7 +379,7 @@ void config()
 	// CSMA设备的物理层配置
 	YansWifiChannelHelper csmaWifiChannel;
 	csmaWifiChannel.SetPropagationDelay("ns3::ConstantSpeedPropagationDelayModel");
-	csmaWifiChannel.AddPropagationLoss("ns3::CniUrbanmicrocellPropagationLossModel", "Frequency", DoubleValue(5800e6), "LosEnabled", BooleanValue(true));
+	csmaWifiChannel.AddPropagationLoss("ns3::CniUrbanmicrocellPropagationLossModel", "Frequency", DoubleValue(5900e6), "LosEnabled", BooleanValue(true));
 
 	Ptr<YansWifiChannel> csmaChannel = csmaWifiChannel.Create();
 	YansWifiPhyHelper csmaWifiPhy = YansWifiPhyHelper::Default();
@@ -577,6 +576,7 @@ void config()
 //    //t4->TraceConnectWithoutContext ("BCHTrace", MakeBoundCallback (&SidelinkV2xAnnouncementMacTrace, host));
 //    t4->TraceConnectWithoutContext ("BCHTrace", MakeBoundCallback (&SidelinkV2xAnnouncementMacTrace, host));
     tdmaDataDevices.Get (0) ->GetObject<WifiNetDevice> () -> GetPhy ()->TraceConnectWithoutContext ("PhyRxCollisionDrop", MakeCallback (&PhyRxCollisionDropTrace));
+    csmaDataDevices.Get (0) ->GetObject<WifiNetDevice> () -> GetPhy ()->TraceConnectWithoutContext ("PhyRxCollisionDrop", MakeCallback (&PhyRxCollisionDropTrace));
 //PhyRxCollisionDrop
 }
 

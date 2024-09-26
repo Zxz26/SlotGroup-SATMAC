@@ -10,6 +10,7 @@
 
 using namespace ns3;
 
+
 class MacLayerController : public Object
 {
 public:
@@ -54,6 +55,8 @@ private:
 
     // 判断是否满足切换设备的条件（自定义条件）
     bool SomeMacLayerCondition();
+
+    Time GetRandomTimeDelay();
 
 };
 

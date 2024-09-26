@@ -1,7 +1,7 @@
 #include "MacLayerController.h"
 #include "ns3/log.h"
 #include "ns3/wifi-net-device.h"
-//#include "ns3/ocb-wifi-mac.h"
+#include "ns3/ocb-wifi-mac.h"
 
 NS_LOG_COMPONENT_DEFINE("MacLayerController");
 
@@ -37,8 +37,8 @@ MacLayerController::Initialize(Ptr<WifiNetDevice> tdmaDevice, Ptr<WifiNetDevice>
     m_csmaDevice = csmaDevice;
     m_currentDevice = tdmaDevice;  // 默认使用 TDMA 设备
     m_node = node;
-    DisableDevice(csmaDevice);
-    EnableDevice(tdmaDevice);
+//    DisableDevice(csmaDevice);
+//    EnableDevice(tdmaDevice);
 }
 
 void MacLayerController::SwitchToDevice(Ptr<WifiNetDevice> device)
@@ -74,19 +74,54 @@ void MacLayerController::ScheduleDeviceCheck(Time interval)
 
 void MacLayerController::TransferPackets(Ptr<WifiNetDevice> fromDevice, Ptr<WifiNetDevice> toDevice)
 {
-    Ptr<WifiMac> fromMac = fromDevice->GetMac();
-    Ptr<WifiMac> toMac = toDevice->GetMac();
+    Ptr<OcbWifiMac> fromMac = DynamicCast<OcbWifiMac>(fromDevice->GetMac());
+    Ptr<OcbWifiMac> toMac = DynamicCast<OcbWifiMac>(toDevice->GetMac());
 
-//    Ptr<OcbWifiMac> fromMac = DynamicCast<OcbWifiMac>(fromDevice->GetMac());
-//    Ptr<OcbWifiMac> toMac = DynamicCast<OcbWifiMac>(toDevice->GetMac());
+    if(fromDevice == m_tdmaDevice)
+    {
+        //tdma to csma
+    	Ptr<TdmaSatmac> satmac = fromMac->GetTdmaObject();
+    	Ptr<TdmaMacQueue> tdma_q = satmac->GetTdmaQueue();
+    	Ptr<Txop> txop = toMac->GetTxopObject();
+    	//Ptr<WifiMacQueue> txop_q = txop->GetWifiMacQueue();
+    	while(!tdma_q->IsEmpty())
+    	{
+    		WifiMacHeader header;
+    		Ptr<const Packet> packet = tdma_q->Dequeue(&header);
+    		if(packet)
+    		{
+    			//txop->Queue(packet, header);
+//    			std::cout<<"node : "<<satmac->getNodePtr()->GetId()
+//    					<<" transfer to csma at "<<Simulator::Now().GetMicroSeconds()<<std::endl;
+    			Time ramdomDelay = GetRandomTimeDelay();
+    			Simulator::Schedule(ramdomDelay, &OcbWifiMac::Enqueue, toMac, packet, header.GetAddr1());
+    			//toMac->Enqueue(packet, header.GetAddr1());
+    		}
+    	}
+    }
+    else
+    {
+    	//csma to tdma
+    	Ptr<Txop> txop = fromMac->GetTxopObject();
+    	Ptr<TdmaSatmac> satmac = toMac->GetTdmaObject();
+    	Ptr<WifiMacQueue> txop_q = txop->GetWifiMacQueue();
 
+    	while(!txop_q->IsEmpty())
+    	{
+    		Ptr<WifiMacQueueItem> item = txop_q->Dequeue();
+    		NS_ASSERT(item != 0);
 
-
-//    WifiMacHeader header;
-//    while (!fromMac->IsQueueEmpty()) {
-//        Ptr<const Packet> packet = fromMac->Dequeue(&header);  // 从当前设备出队
-//        toMac->Enqueue(packet, header.GetAddr1());  // 入队到新设备
-//    }
+    		Ptr<const Packet> packet = item->GetPacket();
+    		WifiMacHeader header = item->GetHeader();
+    		if(packet)
+    		{
+        		//satmac->Queue(packet, header);
+//    			std::cout<<"node : "<<satmac->getNodePtr()->GetId()
+//    					<<" transfer to tdma at "<<Simulator::Now().GetMicroSeconds()<<std::endl;
+    			toMac->Enqueue(packet, header.GetAddr1());
+    		}
+    	}
+    }
 
     NS_LOG_INFO("Transferred packets from current device to new device");
 }
@@ -113,6 +148,14 @@ bool MacLayerController::SomeMacLayerCondition()
     // 返回 true 切换到 CSMA，否则切换到 TDMA
     // 举个例子，这里可以使用信道状态、队列大小等条件
     return rand() % 2 == 0; // 随机切换作为示例
+}
+
+Time MacLayerController::GetRandomTimeDelay()
+{
+    Ptr<UniformRandomVariable> randomVar = CreateObject<UniformRandomVariable>();
+    uint32_t maxDelayNs = 33000; // 最大延迟固定为1000纳秒
+    uint32_t randomDelay = randomVar->GetInteger(0, maxDelayNs);
+    return NanoSeconds(randomDelay);
 }
 
 

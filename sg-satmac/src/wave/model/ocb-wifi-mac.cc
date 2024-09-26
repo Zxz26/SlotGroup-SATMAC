@@ -280,7 +280,7 @@ OcbWifiMac::Enqueue (Ptr<const Packet> packet, Mac48Address to)
 	  }
 	  else
 	  {
-		 std::cout<<"csma "<<this->getNode()->GetId()<<" Time: "<<Simulator::Now().GetMilliSeconds()<<std::endl;
+		 //std::cout<<"csma "<<this->getNode()->GetId()<<" Time: "<<Simulator::Now().GetMicroSeconds()<<std::endl;
 	     m_txop->Queue (packet, hdr);
 	  }
     }

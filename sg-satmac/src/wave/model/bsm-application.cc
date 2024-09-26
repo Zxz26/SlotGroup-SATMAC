@@ -271,6 +271,7 @@ BsmApplication::GenerateWaveTraffic (Ptr<Socket> socket, uint32_t pktSize,
       // started mobility.  so, as an optimization
       // only send if  this node is moving
       // if not, then skip
+	  //std::cout<<m_node->GetId()<<" Time:  "<<Simulator::Now().GetMicroSeconds()<<std::endl;
       int txNodeId = sendingNodeId;
       Ptr<Node> txNode = GetNode (txNodeId);
       Ptr<MobilityModel> txPosition = txNode->GetObject<MobilityModel> ();
@@ -339,11 +340,6 @@ BsmApplication::GenerateWaveTraffic (Ptr<Socket> socket, uint32_t pktSize,
       // from the start of the pktInterval boundary
       uint32_t d_ns = static_cast<uint32_t> (m_txMaxDelay.GetInteger ());
       Time txDelay = NanoSeconds (m_unirv->GetInteger (0, d_ns));
-
-      // do not want the tx delay to be cumulative, so
-      // deduct the previous delay value.  thus we adjust
-      // to schedule the next event at the next pktInterval,
-      // plus some new [0..10] ms tx delay
       Time txTime = pktInterval - m_prevTxDelay + txDelay;
       m_prevTxDelay = txDelay;
       if(m_macLayerController->GetCurrentDevice() == tdmaDevice)

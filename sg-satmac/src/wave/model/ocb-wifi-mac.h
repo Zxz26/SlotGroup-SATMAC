@@ -180,6 +180,10 @@ public:
 	  return m_tdma;
   }
 
+  Ptr<Txop> GetTxopObject()const{
+	  return m_txop;
+  }
+
   void SetTdmaObject(const Ptr<TdmaSatmac> ob){
 	  //NULL
   }

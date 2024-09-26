@@ -18,6 +18,7 @@
 #include "ns3/trace-helper.h"
 
 
+
 namespace ns3 {
 
 class WifiMacHeader;
@@ -284,7 +285,7 @@ public:
 		vemac_mode_ = vemacMode;
 	}
 
-	std::map<int, int> m_neighborCountMap;
+	//std::map<int, int> m_neighborCountMap;
 private:
   static Time GetDefaultSlotTime (void);
   static Time GetDefaultGuardTime (void);
@@ -527,6 +528,29 @@ std::string m_traceOutFile;
 Ptr<OutputStreamWrapper> m_log_lpf_stream;
 /// Provides uniform random variables.
 Ptr<UniformRandomVariable> m_uniformRandomVariable;
+
+/*Slot Group*/
+public:
+	Ptr<TdmaMacQueue> GetTdmaQueue(){
+		return m_queue;
+	}
+
+protected:
+
+private:
+	EventId slotgroupHandlerEvent;
+	void slotgroupHandler();
+
+	int m_slot_group;
+	int slot_group_length;
+	long long total_slot_group_count;
+	int slot_group_count;//当前时隙组index
+	bool isNeedSg;
+	void SlotGroupStart();
+	void SlotGroupEnd();
+	EventId midSlotListeningEvent;
+	void StartMidSlotListening();
+	void MidSlotListening();
 
 };
 

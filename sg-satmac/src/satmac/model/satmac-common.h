@@ -97,6 +97,7 @@ public:
 
 };
 
+
 enum NodeState{
 	NODE_INIT = 0,
 	NODE_LISTEN = 1,
