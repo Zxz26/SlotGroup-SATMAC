@@ -3,35 +3,43 @@
 
 #include "ns3/tag.h"
 #include "ns3/uinteger.h"
-#include "ns3/nstime.h"
-#include "ns3/address.h"
-#include <string.h>
+#include "ns3/string.h"
+#include "ns3/packet.h"
+#include <string>
+#include "satmac-common.h"
 
 namespace ns3 {
 
 class SlotGroupTag : public Tag
 {
 public:
-  SlotGroupTag ();
-  SlotGroupTag (const char* geohash, uint32_t countNode);
+    SlotGroupTag();
+    virtual ~SlotGroupTag();
 
-  // Inherited from Tag.
-  static TypeId GetTypeId (void);
-  virtual TypeId GetInstanceTypeId (void) const;
-  virtual uint32_t GetSerializedSize (void) const;
-  virtual void Serialize (TagBuffer i) const;
-  virtual void Deserialize (TagBuffer i);
-  virtual void Print (std::ostream &os) const;
+    // 必须的 NS-3 方法
+    static TypeId GetTypeId (void);
+    virtual TypeId GetInstanceTypeId (void) const;
+    virtual uint32_t GetSerializedSize (void) const;
+    virtual void Serialize (TagBuffer i) const;
+    virtual void Deserialize (TagBuffer i);
+    virtual void Print (std::ostream &os) const;
 
-  void SetGeohash (const char* geohash);
-  const char* GetGeohash () const;
+    // 设置和获取 slot_group_info
+    void SetSlotGroupInfo(slot_group_info* sg_info);
+    slot_group_info* GetSlotGroupInfo() const;
 
-  void SetCountNode (uint32_t countNode);
-  uint32_t GetCountNode () const;
+    // 设置和获取节点ID
+    void SetSti(int nodeId);
+    int GetSti() const;
+
+    // 设置和获取帧长度
+    void SetFrameLen(int frameLen);
+    int GetFrameLen() const;
 
 private:
-  char m_geohash[3]; // 3-byte geohash
-  uint32_t m_countNode;
+    slot_group_info *m_sg_info;  // 指向 slot_group_info 数组的指针
+    int m_sti;
+    int m_frameLen;
 };
 
 } // namespace ns3

@@ -27,6 +27,7 @@
 #include "ns3/wifi-mac-queue.h"
 #include "vendor-specific-action.h"
 #include "wave-net-device.h"
+#include "ns3/MacLayerController.h"
 
 namespace ns3 {
 
@@ -197,6 +198,7 @@ private:
 
   VendorSpecificContentManager m_vscManager; ///< VSC manager
   Ptr<TdmaSatmac> m_tdma;
+  Ptr<MacLayerController> m_macLayerController;
 
 public:
   void SlotGroupEnque(Ptr<const Packet> packet,const WifiMacHeader &hdr);

@@ -57,6 +57,7 @@
 #include "ns3/wave-bsm-helper.h"
 #include "ns3/flow-monitor-helper.h"
 #include "ns3/wifi-phy-state-helper.h"
+#include "ns3/GeohashHelper.h"
 
 //--building=1 --buildingfile=/home/wu/workspace/ns-3_c-v2x-master/src/wave/examples/9gong/buildings.xml --tracefile=/home/wu/workspace/ns-3_c-v2x-master/src/wave/examples/9gong/9gong.ns2
 //./waf --run "v2x_communication_example2 --numVeh=900 --building=0 --buildingfile=/home/wu/workspace/ns-3_c-v2x-master/src/wave/examples/newyork/buildings.xml --tracefile=/home/wu/workspace/ns-3_c-v2x-master/src/wave/examples/newyork/newyorkmobility.ns2"
@@ -103,8 +104,8 @@ NetDeviceContainer tdmaDataDevices;
 NetDeviceContainer csmaDataDevices;
 Ipv4InterfaceContainer tdmaIpInterfaces;
 
-uint16_t simTime = 5;                 // Simulation time in seconds
-uint32_t numVeh = 5;                  // Number of vehicles
+uint16_t simTime = 100;                 // Simulation time in seconds
+uint32_t numVeh = 10;                  // Number of vehicles
 double txPower = 6.7;                // Transmission power in dBm
 int testdistance = 150;
 
@@ -468,24 +469,42 @@ void config()
     {
     	std::cout<<"@@@@@@TESTING MODE@@@@@@" << std::endl;
 		// Install constant random positions
-        MobilityHelper mobVeh;
-    	// 创建一个 ListPositionAllocator，手动指定10个节点的位置
-    	Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
-    	positionAlloc->Add (Vector (10.0, 20.0, 0.0));    // 节点1的位置
-    	positionAlloc->Add (Vector (30.0, 40.0, 0.0));    // 节点2的位置
-    	positionAlloc->Add (Vector (50.0, 60.0, 0.0));    // 节点3的位置
-    	positionAlloc->Add (Vector (70.0, 80.0, 0.0));    // 节点4的位置
-    	positionAlloc->Add (Vector (90.0, 100.0, 0.0));   // 节点5的位置
-    	positionAlloc->Add (Vector (110.0, 120.0, 0.0));  // 节点6的位置
-    	positionAlloc->Add (Vector (130.0, 140.0, 0.0));  // 节点7的位置
-    	positionAlloc->Add (Vector (150.0, 160.0, 0.0));  // 节点8的位置
-    	positionAlloc->Add (Vector (170.0, 180.0, 0.0));  // 节点9的位置
-    	positionAlloc->Add (Vector (190.0, 200.0, 0.0));  // 节点10的位置
-    	mobVeh.SetPositionAllocator (positionAlloc);
-    	// 设置移动模型为 StaticMobilityModel，节点将保持静止
-    	mobVeh.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
-    	// 为所有节点安装移动模型
-    	mobVeh.Install (allNodesCon);
+//        MobilityHelper mobVeh;
+//    	// 创建一个 ListPositionAllocator，手动指定10个节点的位置
+//    	Ptr<ListPositionAllocator> positionAlloc = CreateObject<ListPositionAllocator> ();
+//    	positionAlloc->Add (Vector (10.0, 20.0, 0.0));    // 节点1的位置
+//    	positionAlloc->Add (Vector (30.0, 40.0, 0.0));    // 节点2的位置
+//    	positionAlloc->Add (Vector (50.0, 60.0, 0.0));    // 节点3的位置
+//    	positionAlloc->Add (Vector (70.0, 80.0, 0.0));    // 节点4的位置
+//    	positionAlloc->Add (Vector (90.0, 100.0, 0.0));   // 节点5的位置
+//    	positionAlloc->Add (Vector (110.0, 120.0, 0.0));  // 节点6的位置
+//    	positionAlloc->Add (Vector (130.0, 140.0, 0.0));  // 节点7的位置
+//    	positionAlloc->Add (Vector (150.0, 160.0, 0.0));  // 节点8的位置
+//    	positionAlloc->Add (Vector (170.0, 180.0, 0.0));  // 节点9的位置
+//    	positionAlloc->Add (Vector (190.0, 200.0, 0.0));  // 节点10的位置
+//    	mobVeh.SetPositionAllocator (positionAlloc);
+//    	// 设置移动模型为 StaticMobilityModel，节点将保持静止
+//    	mobVeh.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
+//    	// 为所有节点安装移动模型
+//    	mobVeh.Install (allNodesCon);
+
+    	// 设置 PositionAllocator，使节点的位置分布在 200x200 的范围内
+    	Ptr<RandomRectanglePositionAllocator> positionAlloc = CreateObject<RandomRectanglePositionAllocator> ();
+    	positionAlloc->SetAttribute("X", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=200.0]"));
+    	positionAlloc->SetAttribute("Y", StringValue("ns3::UniformRandomVariable[Min=0.0|Max=200.0]"));
+
+    	MobilityHelper mobVeh;
+    	mobVeh.SetPositionAllocator(positionAlloc);
+
+    	// 设置节点的移动模型为 RandomWaypointMobilityModel
+    	// 设置移动速度范围模拟车辆移动，速度范围为 5 到 20 米/秒，暂停时间为 1 到 2 秒
+    	mobVeh.SetMobilityModel("ns3::RandomWaypointMobilityModel",
+    	                        "Speed", StringValue("ns3::UniformRandomVariable[Min=5.0|Max=20.0]"),
+    	                        "Pause", StringValue("ns3::UniformRandomVariable[Min=1.0|Max=2.0]"),
+    	                        "PositionAllocator", PointerValue(positionAlloc));
+
+    	// 安装移动模型到所有节点
+    	mobVeh.Install(allNodesCon);
     } else {
 
 //    	if (numVeh <=201)
@@ -536,7 +555,7 @@ void config()
 									   m_txSafetyRanges,
 									   chAccessMode,
 									   // tx max delay before transmit, in ms
-									   MilliSeconds (m_txMaxDelayMs));
+									   MilliSeconds (0));
     	  else
 			  m_waveBsmHelper.Install (tdmaIpInterfaces,
 									   Seconds (simTime),

@@ -97,6 +97,15 @@ public:
 
 };
 
+struct slot_group_info{
+	std::string geohash;
+	uint32_t count_node;
+	slot_group_info(){
+		geohash = "00";
+		count_node = 0;
+	}
+};
+
 
 enum NodeState{
 	NODE_INIT = 0,

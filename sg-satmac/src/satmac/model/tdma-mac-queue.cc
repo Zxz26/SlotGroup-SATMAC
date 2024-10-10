@@ -31,7 +31,7 @@
 #include "ns3/simulator.h"
 #include "ns3/uinteger.h"
 #include "ns3/log.h"
-#include "tdma-mac-queue.h"
+#include "ns3/tdma-mac-queue.h"
 
 using namespace std;
 NS_LOG_COMPONENT_DEFINE ("TdmaMacQueue");
@@ -120,7 +120,7 @@ bool
 TdmaMacQueue::Enqueue (Ptr<const Packet> packet, const WifiMacHeader &hdr)
 {
   NS_LOG_DEBUG ("Queue Size: " << GetSize () << " Max Size: " << GetMaxSize ());
-//  std::cout<<"Queue Size: " << GetSize () << " Max Size: " << GetMaxSize ()<<std::endl;
+  //std::cout<<"Queue Size: " << GetSize () << " Max Size: " << GetMaxSize ()<<std::endl;
   Cleanup ();
   if (m_size == m_maxSize)
     {

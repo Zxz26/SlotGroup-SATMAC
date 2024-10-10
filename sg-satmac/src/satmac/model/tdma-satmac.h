@@ -16,6 +16,8 @@
 
 #include "ns3/output-stream-wrapper.h"
 #include "ns3/trace-helper.h"
+#include <unordered_set>
+
 
 
 
@@ -26,6 +28,7 @@ class TdmaMacLow;
 class TdmaMac;
 class RegularWifiMac;
 class MacLow;
+class SlotGroupTag;
 
 class TransmissionListenerUseless : public Txop
 //MacLowTransmissionListener
@@ -529,6 +532,7 @@ Ptr<OutputStreamWrapper> m_log_lpf_stream;
 /// Provides uniform random variables.
 Ptr<UniformRandomVariable> m_uniformRandomVariable;
 
+
 /*Slot Group*/
 public:
 	Ptr<TdmaMacQueue> GetTdmaQueue(){
@@ -538,19 +542,29 @@ public:
 protected:
 
 private:
-	EventId slotgroupHandlerEvent;
-	void slotgroupHandler();
-
-	int m_slot_group;
-	int slot_group_length;
+	int m_slot_group;//本节点时隙组
+	int slot_group_length;//时隙组长度
 	long long total_slot_group_count;
 	int slot_group_count;//当前时隙组index
 	bool isNeedSg;
+
+
+	slot_group_info *m_sg_info;
+	std::unordered_set<int> local_same_sg_id;//本地维护的和本节点使用相同时隙组的节点ID
+
+	/*时隙组调度*/
+	EventId slotgroupHandlerEvent;
+	void slotgroupHandler();
 	void SlotGroupStart();
 	void SlotGroupEnd();
 	EventId midSlotListeningEvent;
 	void StartMidSlotListening();
 	void MidSlotListening();
+
+	std::string GetGeohash();
+	int determine_SG();
+	void merge_sgi(SlotGroupTag recv_sgi_tag);
+	void CheckIsNeedSG();
 
 };
 

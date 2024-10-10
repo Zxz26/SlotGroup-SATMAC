@@ -32,6 +32,7 @@
 #include "vendor-specific-action.h"
 #include "higher-tx-tag.h"
 #include "ns3/wifi-net-device.h"
+#include "ns3/AperiodicTag.h"
 
 namespace ns3 {
 
@@ -276,12 +277,22 @@ OcbWifiMac::Enqueue (Ptr<const Packet> packet, Mac48Address to)
 	  if (getTdmaEnable())
 	  {
 		  //std::cout<<"tdma "<<this->getNode()->GetId()<<std::endl;
-		  m_tdma->Queue(packet, hdr);
+		  Ptr<WifiNetDevice> tdma = DynamicCast<WifiNetDevice>(this->getNode()->GetDevice(0));
+		  m_macLayerController = this->getNode()->GetObject<MacLayerController>();
+//		  if(m_macLayerController->GetCurrentDevice() == tdma)
+//		  {
+			  m_tdma->Queue(packet, hdr);
+//		  }
 	  }
 	  else
 	  {
 		 //std::cout<<"csma "<<this->getNode()->GetId()<<" Time: "<<Simulator::Now().GetMicroSeconds()<<std::endl;
-	     m_txop->Queue (packet, hdr);
+		 AperiodicTag tag;
+		 if(packet->PeekPacketTag(tag))
+		 {
+			 //std::cout<<"csma "<<this->getNode()->GetId()<<" Time: "<<Simulator::Now().GetMicroSeconds()<<std::endl;
+			 m_txop->Queue (packet, hdr);
+		 }
 	  }
     }
 }

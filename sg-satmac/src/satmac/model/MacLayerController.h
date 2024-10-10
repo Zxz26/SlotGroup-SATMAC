@@ -44,6 +44,9 @@ public:
 
     // 禁用指定设备
     void DisableDevice(Ptr<WifiNetDevice> device);
+
+    //
+    void TransBsmPacket(Ptr<const Packet> pkt, WifiMacHeader hdr);
 private:
     Ptr<WifiNetDevice> m_tdmaDevice;
     Ptr<WifiNetDevice> m_csmaDevice;

@@ -2,6 +2,7 @@
 #include "ns3/log.h"
 #include "ns3/wifi-net-device.h"
 #include "ns3/ocb-wifi-mac.h"
+#include "AperiodicTag.h"
 
 NS_LOG_COMPONENT_DEFINE("MacLayerController");
 
@@ -46,11 +47,10 @@ void MacLayerController::SwitchToDevice(Ptr<WifiNetDevice> device)
     if (m_currentDevice != device) {
         // 先转移数据包到新设备
         TransferPackets(m_currentDevice, device);
-        // 禁用当前设备
+    	// 禁用当前设备
         DisableDevice(m_currentDevice);
         // 启用新设备
         EnableDevice(device);
-
         m_currentDevice = device;
         NS_LOG_INFO("Switched to device: " << device);
     }
@@ -76,6 +76,7 @@ void MacLayerController::TransferPackets(Ptr<WifiNetDevice> fromDevice, Ptr<Wifi
 {
     Ptr<OcbWifiMac> fromMac = DynamicCast<OcbWifiMac>(fromDevice->GetMac());
     Ptr<OcbWifiMac> toMac = DynamicCast<OcbWifiMac>(toDevice->GetMac());
+	AperiodicTag tag;
 
     if(fromDevice == m_tdmaDevice)
     {
@@ -83,12 +84,12 @@ void MacLayerController::TransferPackets(Ptr<WifiNetDevice> fromDevice, Ptr<Wifi
     	Ptr<TdmaSatmac> satmac = fromMac->GetTdmaObject();
     	Ptr<TdmaMacQueue> tdma_q = satmac->GetTdmaQueue();
     	Ptr<Txop> txop = toMac->GetTxopObject();
-    	//Ptr<WifiMacQueue> txop_q = txop->GetWifiMacQueue();
+    	std::vector<std::pair<Ptr<const Packet>, WifiMacHeader>> tempQueue;
     	while(!tdma_q->IsEmpty())
     	{
     		WifiMacHeader header;
     		Ptr<const Packet> packet = tdma_q->Dequeue(&header);
-    		if(packet)
+    		if(packet && packet->PeekPacketTag(tag))
     		{
     			//txop->Queue(packet, header);
 //    			std::cout<<"node : "<<satmac->getNodePtr()->GetId()
@@ -97,6 +98,15 @@ void MacLayerController::TransferPackets(Ptr<WifiNetDevice> fromDevice, Ptr<Wifi
     			Simulator::Schedule(ramdomDelay, &OcbWifiMac::Enqueue, toMac, packet, header.GetAddr1());
     			//toMac->Enqueue(packet, header.GetAddr1());
     		}
+    		else
+    		{
+    			tempQueue.push_back(std::make_pair(packet, header));
+    		}
+    	}
+    	for(auto item : tempQueue)
+    	{
+    		fromMac->Enqueue(item.first, item.second.GetAddr1());
+    		//satmac->Queue(item.first, item.second);
     	}
     }
     else
@@ -105,26 +115,34 @@ void MacLayerController::TransferPackets(Ptr<WifiNetDevice> fromDevice, Ptr<Wifi
     	Ptr<Txop> txop = fromMac->GetTxopObject();
     	Ptr<TdmaSatmac> satmac = toMac->GetTdmaObject();
     	Ptr<WifiMacQueue> txop_q = txop->GetWifiMacQueue();
-
+    	std::vector<Ptr<WifiMacQueueItem>> tempQueue;
     	while(!txop_q->IsEmpty())
     	{
     		Ptr<WifiMacQueueItem> item = txop_q->Dequeue();
     		NS_ASSERT(item != 0);
-
     		Ptr<const Packet> packet = item->GetPacket();
     		WifiMacHeader header = item->GetHeader();
-    		if(packet)
+    		if(packet && packet->PeekPacketTag(tag))
     		{
         		//satmac->Queue(packet, header);
 //    			std::cout<<"node : "<<satmac->getNodePtr()->GetId()
 //    					<<" transfer to tdma at "<<Simulator::Now().GetMicroSeconds()<<std::endl;
     			toMac->Enqueue(packet, header.GetAddr1());
     		}
+    		else
+    		{
+    			tempQueue.push_back(item);
+    		}
+    	}
+    	for(auto item : tempQueue)
+    	{
+    		txop_q->Enqueue(item);
     	}
     }
 
     NS_LOG_INFO("Transferred packets from current device to new device");
 }
+
 
 // 启用指定设备
 void MacLayerController::EnableDevice(Ptr<WifiNetDevice> device) {
@@ -133,6 +151,7 @@ void MacLayerController::EnableDevice(Ptr<WifiNetDevice> device) {
 
 // 禁用指定设备
 void MacLayerController::DisableDevice(Ptr<WifiNetDevice> device) {
+	//std::cout<<"DisableDevice at "<<Simulator::Now()<<std::endl;
 	device->SetSendEnabled(false);
 }
 
@@ -153,10 +172,23 @@ bool MacLayerController::SomeMacLayerCondition()
 Time MacLayerController::GetRandomTimeDelay()
 {
     Ptr<UniformRandomVariable> randomVar = CreateObject<UniformRandomVariable>();
-    uint32_t maxDelayNs = 33000; // 最大延迟固定为1000纳秒
+    uint32_t maxDelayNs = 30000; // 最大延迟固定为1000纳秒
     uint32_t randomDelay = randomVar->GetInteger(0, maxDelayNs);
     return NanoSeconds(randomDelay);
 }
+
+void MacLayerController::TransBsmPacket(Ptr<const Packet> pkt, WifiMacHeader hdr)
+{
+	if(m_currentDevice == m_csmaDevice)
+	{
+		Ptr<OcbWifiMac> tdmaMac = DynamicCast<OcbWifiMac>(m_tdmaDevice->GetMac());
+		Ptr<TdmaSatmac> satmac = tdmaMac->GetTdmaObject();
+		satmac->GetTdmaQueue()->Enqueue(pkt, hdr);
+		//satmac->Queue(pkt, hdr);
+	}
+}
+
+
 
 
 

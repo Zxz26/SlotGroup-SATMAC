@@ -28,6 +28,7 @@
 #include "ns3/mobility-helper.h"
 
 #include "bsm-timetag.h"
+#include "ns3/AperiodicTag.h"
 
 
 NS_LOG_COMPONENT_DEFINE ("BsmApplication");
@@ -190,6 +191,10 @@ void BsmApplication::StartApplication () // Called at time specified by Start
 
   Time txTime = startTime + tDrift + txDelay;
 
+  // 非周期性数据包的初始生成，使用 GetAperiodicRandomInterval
+  Time firstAperiodicTime = startTime + GetAperiodicRandomInterval();
+
+
   // 根据当前设备使用哪个socket来发送
   //if(m_nodeId == 0)
   if(m_macLayerController->GetCurrentDevice() == tdmaDevice)
@@ -200,6 +205,9 @@ void BsmApplication::StartApplication () // Called at time specified by Start
       Simulator::ScheduleWithContext(tdmaSocket->GetNode()->GetId(),
                                      txTime, &BsmApplication::GenerateWaveTraffic, this,
                                      tdmaSocket, m_wavePacketSize, m_numWavePackets, waveInterPacketInterval, m_nodeId);
+      Simulator::ScheduleWithContext(tdmaSocket->GetNode()->GetId(),
+    		  	  	  	  	  	  	 firstAperiodicTime, &BsmApplication::GenerateAperiodicTraffic, this,
+									 tdmaSocket, m_wavePacketSize, m_nodeId);
   }
   else
   {
@@ -209,6 +217,10 @@ void BsmApplication::StartApplication () // Called at time specified by Start
       Simulator::ScheduleWithContext(csmaSocket->GetNode()->GetId(),
                                      txTime, &BsmApplication::GenerateWaveTraffic, this,
                                      csmaSocket, m_wavePacketSize, m_numWavePackets, waveInterPacketInterval, m_nodeId);
+
+      Simulator::ScheduleWithContext(csmaSocket->GetNode()->GetId(),
+    		  	  	  	  	  	  	 firstAperiodicTime, &BsmApplication::GenerateAperiodicTraffic, this,
+									 csmaSocket, m_wavePacketSize, m_nodeId);
   }
 
 }
@@ -285,8 +297,18 @@ BsmApplication::GenerateWaveTraffic (Ptr<Socket> socket, uint32_t pktSize,
     	  tag.setSendingTimeUs(Simulator::Now().GetMicroSeconds());
     	  Ptr<Packet> pkt = Create<Packet> (pktSize);
     	  pkt->AddPacketTag(tag);
+    	  //std::cout<<Simulator::Now().GetMicroSeconds()<<std::endl;
 	      // send it!
-	      socket->Send(pkt);
+//    	  if(m_macLayerController->GetCurrentDevice() == tdmaDevice)
+//    	  {
+//    		  tdmaSocket->Send(pkt);
+//    	  }
+//    	  else
+//    	  {
+//    		  csmaSocket->Send(pkt);
+//    	  }
+    	  tdmaSocket->Send(pkt);
+    	  //csmaSocket->Send(pkt);
           // count it
           m_waveBsmStats->IncTxPktCount ();
           m_waveBsmStats->IncTxByteCount (pktSize);
@@ -342,19 +364,10 @@ BsmApplication::GenerateWaveTraffic (Ptr<Socket> socket, uint32_t pktSize,
       Time txDelay = NanoSeconds (m_unirv->GetInteger (0, d_ns));
       Time txTime = pktInterval - m_prevTxDelay + txDelay;
       m_prevTxDelay = txDelay;
-      if(m_macLayerController->GetCurrentDevice() == tdmaDevice)
-      {
-          Simulator::ScheduleWithContext (tdmaSocket->GetNode ()->GetId (),
-                                          txTime, &BsmApplication::GenerateWaveTraffic, this,
-										  tdmaSocket, pktSize, pktCount - 1, pktInterval,  tdmaSocket->GetNode ()->GetId ());
-      }
-      else
-      {
-          Simulator::ScheduleWithContext (csmaSocket->GetNode ()->GetId (),
-                                          txTime, &BsmApplication::GenerateWaveTraffic, this,
-										  csmaSocket, pktSize, pktCount - 1, pktInterval,  csmaSocket->GetNode ()->GetId ());
-      }
 
+      Simulator::ScheduleWithContext (tdmaSocket->GetNode ()->GetId (),
+                                      txTime, &BsmApplication::GenerateWaveTraffic, this,
+									  tdmaSocket, pktSize, pktCount - 1, pktInterval,  tdmaSocket->GetNode ()->GetId ());
     }
   else
     {
@@ -381,8 +394,16 @@ void BsmApplication::ReceiveWavePacket (Ptr<Socket> socket)
               if (addr.GetIpv4 () == m_adhocTxInterfaces->GetAddress (i) )
                 {
                   Ptr<Node> txNode = GetNode (i);
-                  HandleReceivedBsmPacket (txNode, rxNode);
-
+                  AperiodicTag apic_tag;
+                  if(packet->PeekPacketTag(apic_tag))
+                  {
+                	  //std::cout<<"1"<<std::endl;
+                	  HandleReceivedAperiodicPacket(txNode, rxNode);
+                  }
+                  else
+                  {
+                      HandleReceivedBsmPacket (txNode, rxNode);
+                  }
                   BsmTimeTag tag;
                   packet->RemovePacketTag(tag);
                   uint32_t delta = Simulator::Now().GetMicroSeconds() - tag.getSendingTimeUs();
@@ -461,6 +482,157 @@ BsmApplication::GetNetDevice (int id)
 //  Ptr<NetDevice> device = pp->GetObject<NetDevice> ();
 
 }
+
+void BsmApplication::GenerateAperiodicTraffic(Ptr<Socket> socket, uint32_t pktSize, uint32_t sendingNodeId)
+{
+    NS_LOG_FUNCTION(this);
+
+    // 确定当前节点ID，获取节点位置信息
+    int txNodeId = sendingNodeId;
+    Ptr<Node> txNode = GetNode(txNodeId);
+    Ptr<MobilityModel> txPosition = txNode->GetObject<MobilityModel>();
+    NS_ASSERT(txPosition != 0);
+
+    // 确认节点是否移动，如果移动，生成数据包
+    int senderMoving = m_nodesMoving->at(txNodeId);
+    if (senderMoving != 0)
+    {
+        // 生成数据包并添加时间戳标签
+        BsmTimeTag tag;
+        tag.setSendingTimeUs(Simulator::Now().GetMicroSeconds());
+        AperiodicTag apic_tag;
+        Ptr<Packet> pkt = Create<Packet>(pktSize);
+        pkt->AddPacketTag(tag);
+        pkt->AddPacketTag(apic_tag);
+
+        // 根据 MAC 控制器的当前设备选择对应的 socket
+        if (m_macLayerController->GetCurrentDevice() == tdmaDevice)
+        {
+            // 发送数据包使用 TDMA 设备
+            tdmaSocket->Send(pkt);
+        }
+        else
+        {
+            // 发送数据包使用 CSMA 设备
+            csmaSocket->Send(pkt);
+        }
+
+        // 统计发送数据包的数量和字节数
+        m_waveBsmStats->IncTxPktCount();
+        m_waveBsmStats->IncTxByteCount(pktSize);
+        int wavePktsSent = m_waveBsmStats->GetTxPktCount();
+
+        // 每发送1000个数据包，打印日志
+        if ((m_waveBsmStats->GetLogging() != 0) && ((wavePktsSent % 1000) == 0))
+        {
+            NS_LOG_UNCOND("Sending aperiodic pkt # " << wavePktsSent);
+        }
+
+        // 确定所有在范围内的节点
+        int nRxNodes = m_adhocTxInterfaces->GetN();
+        for (int i = 0; i < nRxNodes; i++)
+        {
+            Ptr<Node> rxNode = GetNode(i);
+            int rxNodeId = rxNode->GetId();
+
+            if (rxNodeId != txNodeId)
+            {
+                Ptr<MobilityModel> rxPosition = rxNode->GetObject<MobilityModel>();
+                NS_ASSERT(rxPosition != 0);
+
+                // 确认接收节点是否也在移动
+                int receiverMoving = m_nodesMoving->at(rxNodeId);
+                if (receiverMoving == 1)
+                {
+                    double distSq = MobilityHelper::GetDistanceSquaredBetween(txNode, rxNode);
+                    if (distSq > 0.0)
+                    {
+                        int rangeCount = m_txSafetyRangesSq.size();
+                        for (int index = 1; index <= rangeCount; index++)
+                        {
+                            if (distSq <= m_txSafetyRangesSq[index - 1])
+                            {
+                                // 记录预期接收数据包的节点数
+                                m_waveBsmStats->IncExpectedRxPktCount(index);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 随机生成下一个数据包的间隔时间
+        Time randomInterval = GetAperiodicRandomInterval();
+
+        // 添加随机延迟以避免冲突
+        uint32_t d_ns = static_cast<uint32_t>(m_txMaxDelay.GetInteger());
+        Time txDelay = NanoSeconds(m_unirv->GetInteger(0, d_ns));
+        Time txTime = randomInterval - m_prevTxDelay + txDelay;
+        m_prevTxDelay = txDelay;
+
+        // 调度下一次非周期性数据包发送
+        if (m_macLayerController->GetCurrentDevice() == tdmaDevice)
+        {
+            Simulator::ScheduleWithContext(tdmaSocket->GetNode()->GetId(), txTime, &BsmApplication::GenerateAperiodicTraffic, this,
+                                           tdmaSocket, pktSize, sendingNodeId);
+        }
+        else
+        {
+            Simulator::ScheduleWithContext(csmaSocket->GetNode()->GetId(), txTime, &BsmApplication::GenerateAperiodicTraffic, this,
+                                           csmaSocket, pktSize, sendingNodeId);
+        }
+    }
+}
+
+
+
+
+
+void BsmApplication::HandleReceivedAperiodicPacket(Ptr<Node> txNode, Ptr<Node> rxNode)
+{
+    NS_LOG_FUNCTION(this);
+
+    // 统计接收数据包
+    m_waveBsmStats->IncRxPktCount();
+    m_waveBsmStats->LogPktRecvTime2Map(txNode->GetId(), rxNode->GetId());
+
+    Ptr<MobilityModel> rxPosition = rxNode->GetObject<MobilityModel>();
+    NS_ASSERT(rxPosition != 0);
+
+    int rxNodeId = rxNode->GetId();
+    int receiverMoving = m_nodesMoving->at(rxNodeId);
+
+    if (receiverMoving == 1)
+    {
+        double rxDistSq = MobilityHelper::GetDistanceSquaredBetween(rxNode, txNode);
+        if (rxDistSq > 0.0)
+        {
+            int rangeCount = m_txSafetyRangesSq.size();
+            for (int index = 1; index <= rangeCount; index++)
+            {
+                if (rxDistSq <= m_txSafetyRangesSq[index - 1])
+                {
+                    m_waveBsmStats->IncRxPktInRangeCount(index);
+                }
+            }
+        }
+    }
+}
+
+
+
+Time BsmApplication::GetAperiodicRandomInterval()
+{
+    // 创建一个均值为50毫秒的指数分布随机变量
+    Ptr<ExponentialRandomVariable> expRandomVar = CreateObject<ExponentialRandomVariable>();
+    expRandomVar->SetAttribute("Mean", DoubleValue(50.0));  // 均值50ms
+
+    // 随机延迟 = 50ms 固定时间 + 指数分布随机时间
+    Time randomInterval = MilliSeconds(50) + MilliSeconds(expRandomVar->GetValue());
+
+    return randomInterval;
+}
+
 
 
 } // namespace ns3

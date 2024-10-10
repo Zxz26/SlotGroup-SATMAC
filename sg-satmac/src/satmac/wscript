@@ -20,6 +20,8 @@ def build(bld):
         'model/location-packet-tag.cc',
         'model/SlotGroupTag.cc',
         'model/MacLayerController.cc',
+        'model/AperiodicTag.cc',
+        'model/GeohashHelper.cc',
         ]
         
     module_test = bld.create_ns3_module_test_library('satmac')
@@ -41,6 +43,8 @@ def build(bld):
         'model/location-packet-tag.h',    
         'model/SlotGroupTag.h', 
         'model/MacLayerController.h',
+        'model/AperiodicTag.h',
+       'model/GeohashHelper.h',
         ]
 
     if bld.env.ENABLE_EXAMPLES:

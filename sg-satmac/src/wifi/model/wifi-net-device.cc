@@ -30,6 +30,7 @@
 #include "regular-wifi-mac.h"
 #include "wifi-mac-queue.h"
 #include "ns3/ipv4.h"
+#include "ns3/AperiodicTag.h"
 
 namespace ns3 {
 
@@ -346,7 +347,10 @@ WifiNetDevice::Send (Ptr<Packet> packet, const Address& dest, uint16_t protocolN
 {
   NS_LOG_FUNCTION (this << packet << dest << protocolNumber);
   NS_ASSERT (Mac48Address::IsMatchingType (dest));
-  if(!m_sendEnabled)
+  AperiodicTag tag;
+  Ptr<WifiNetDevice> tdma = DynamicCast<WifiNetDevice>(this->GetNode()->GetDevice(0));
+  Ptr<WifiNetDevice> csma = DynamicCast<WifiNetDevice>(this->GetNode()->GetDevice(1));
+  if(!m_sendEnabled && packet->PeekPacketTag(tag))
   {
 	  return false;
   }

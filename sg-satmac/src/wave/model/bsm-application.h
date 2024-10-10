@@ -155,6 +155,12 @@ private:
    */
   Ptr<WifiNetDevice> GetNetDevice (int id);
 
+  Time GetAperiodicRandomInterval();
+  void GenerateAperiodicTraffic(Ptr<Socket> socket,
+		  	  	  	  	  	  	  uint32_t pktSize,
+								  uint32_t sendingNodeId);
+  void HandleReceivedAperiodicPacket(Ptr<Node> txNode, Ptr<Node> rxNode);
+
 
   Ptr<WaveBsmStats> m_waveBsmStats; ///< BSM stats
   /// tx safety range squared, for optimization

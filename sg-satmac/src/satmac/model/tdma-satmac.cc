@@ -26,6 +26,9 @@
 #include "ns3/ipv4-interface.h"
 #include "ns3/arp-cache.h"
 #include "MacLayerController.h"
+#include "SlotGroupTag.h"
+#include "AperiodicTag.h"
+#include "GeohashHelper.h"
 
 
 
@@ -289,6 +292,8 @@ TdmaSatmac::~TdmaSatmac ()
 {
   m_channel = 0;
   m_bps = 0;
+  delete[] m_sg_info;
+  m_sg_info = NULL;
 }
 
 void
@@ -332,10 +337,12 @@ TdmaSatmac::Start (void)
 
   m_slot_group = -1;
   slot_group_length = 4;
-  total_slot_group_count = -1;
+  total_slot_group_count = 0;
   slot_group_count = 0;//当前时隙组index
   isNeedSg = false;
-  Simulator::Schedule (MilliSeconds (starttime) * slot_group_length,&TdmaSatmac::slotgroupHandler, this);
+  m_sg_info = new slot_group_info[128];
+
+ Simulator::Schedule ((MilliSeconds (starttime) * (slot_group_length +1)),&TdmaSatmac::slotgroupHandler, this);
 
 }
 
@@ -1031,7 +1038,15 @@ TdmaSatmac::Receive (Ptr<Packet> packet, const WifiMacHeader *hdr)
       recv_fi_count_++;
   	}
   else
+  {
+	  SlotGroupTag sg_tag;
+	  if(packet->PeekPacketTag(sg_tag))
+	  {
+		  merge_sgi(sg_tag);
+	  }
       ForwardUp (packet, hdr);
+  }
+
 }
 
 void
@@ -1058,8 +1073,6 @@ void TdmaSatmac::recvFI(Ptr<Packet> p){
 	satmac::FiHeader fihdr;
 	//unsigned char buffer = p->accessdata();
 	p->RemoveHeader(fihdr);
-//TODO
-
 
 	value = fihdr.decode_value(byte_pos,bit_pos,BIT_LENGTH_STI);
 	tmp_sti = (unsigned int)value;
@@ -1618,6 +1631,18 @@ void TdmaSatmac::generate_send_FI_packet(){
 	wifihdr.SetDsFrom ();
 	wifihdr.SetDsNotTo ();
 
+	CheckIsNeedSG();
+	if(isNeedSg)
+	{
+		//TODO
+//		determine_SG();
+//		SlotGroupTag tag;
+//		tag.SetFrameLen(m_frame_len);
+//		tag.SetSti(global_sti);
+//		tag.SetSlotGroupInfo(m_sg_info);
+//		p->AddPacketTag(tag);
+	}
+
 	if (m_wifimaclow_flag)
 	{
 		SendFiDown(p, wifihdr);
@@ -1828,6 +1853,8 @@ TdmaSatmac::slotHandler ()
   slot_count_ = total_slot_count_ %  m_frame_len;
   Simulator::Schedule (GetSlotTime(), &TdmaSatmac::slotHandler, this);
 
+  //std::cout<<"slot_count_"<<slot_count_<<std::endl;
+
 //  for(int i = 0;i < m_frame_len; i++)
 //  {
 //	  std::cout<<"slot "<<i<<" node "<<fi_collection[i].sti-1<<std::endl;
@@ -1883,7 +1910,7 @@ TdmaSatmac::slotHandler ()
 	  }
   }
 */
-//TODO: 加一个开启的命令。。
+
 //  if(this->enable == 0){
 //	  return;
 //  }
@@ -1926,6 +1953,9 @@ TdmaSatmac::slotHandler ()
 	  		last_location_ = curr_location_;
 			//printf("%f, %f, %f, %d\n", current_loc.x, current_loc.y, current_loc.z, direction_);
 	  }
+
+	  //TODO:检查是否有非周期信息，是否需要时隙组
+	  //CheckIsNeedSG();
 
 	  switch (node_state_) {
 	  case NODE_INIT:// the first whole slot of a newly initialized node, it begin to listen
@@ -2262,23 +2292,70 @@ void TdmaSatmac::slotgroupHandler()
 
 	slotgroupHandlerEvent = Simulator::Schedule (GetSlotTime() * slot_group_length, &TdmaSatmac::slotgroupHandler, this);
 
+
+	//std::cout<<"slot_count_ "<<slot_count_<<std::endl;
 	//std::cout<<"slot_group_count= "<<slot_group_count<<std::endl;
 	//std::cout<<"Time: "<<Simulator::Now().GetMilliSeconds()<<std::endl;
 
+//	  slot_tag *fi_local_= this->collected_fi_->slot_describe;
+//	  for(int i = 0;i < m_frame_len; i++)
+//	  {
+//		  std::cout<<"slot "<<i<<" node "<<fi_local_[i].sti-1<<std::endl;
+//	  }
+	  //1 3 4 6
 	if(this->getNodePtr()->GetId() < 4 && node_state_ == NODE_WORK_FI)
 	{
 		m_slot_group = 0;
 		isNeedSg = true;
 	}
-
-	if(slot_group_count == m_slot_group)
+	else if(this->getNodePtr()->GetId() >= 4 && this->getNodePtr()->GetId() < 7 && node_state_ == NODE_WORK_FI)
 	{
-		//std::cout<<"Start:"<<Simulator::Now().GetMilliSeconds()<<std::endl;
-		SlotGroupStart();
-		StartMidSlotListening();
+		m_slot_group = 3;
+		isNeedSg = true;
 	}
+	else if(this->getNodePtr()->GetId() >= 7 && this->getNodePtr()->GetId() < 10 && node_state_ == NODE_WORK_FI)
+	{
+		m_slot_group = 7;
+		isNeedSg = true;
+	}
+
+    if(slot_group_count == m_slot_group)
+    {
+        // 找出最大连续空闲时隙的起点和终点
+        slot_tag *fi_local_ = this->collected_fi_->slot_describe;
+        int maxFreeSlots = 0;
+        int currentFreeSlots = 0;
+        int startSlot = -1;
+        int endSlot = -1;
+        const int TOTAL_SLOTS_TO_CHECK = 4;
+
+        for (uint32_t i = slot_count_; i < slot_count_ + TOTAL_SLOTS_TO_CHECK; ++i)
+        {
+            if (fi_local_[i].busy == SLOT_FREE)
+            {
+                currentFreeSlots++;
+                if (currentFreeSlots > maxFreeSlots)
+                {
+                    maxFreeSlots = currentFreeSlots;
+                    startSlot = i - maxFreeSlots + 1;
+                    endSlot = i;
+                }
+            }
+            else
+            {
+                currentFreeSlots = 0;
+            }
+        }
+
+       if(slot_count_ == startSlot)
+       {
+           SlotGroupStart();
+           StartMidSlotListening();
+           Simulator::Schedule(GetSlotTime() * maxFreeSlots - NanoSeconds(1), &TdmaSatmac::SlotGroupEnd, this);
+       }
+    }
     // 在时隙组结束前调度结束函数
-	Simulator::Schedule(GetSlotTime() * slot_group_length - NanoSeconds(1), &TdmaSatmac::SlotGroupEnd, this);
+	//Simulator::Schedule(GetSlotTime() * slot_group_length - NanoSeconds(1), &TdmaSatmac::SlotGroupEnd, this);
 
 }
 
@@ -2306,9 +2383,8 @@ void TdmaSatmac::MidSlotListening()
     //std::cout<<midSlotListeningEvent.IsRunning()<<std::endl;
     //std::cout << "Current simulation time: " << Simulator::Now().GetMicroSeconds() << " MicroSeconds" << std::endl;
 
-    //std::cout<<Seconds(GetSlotTime().GetDouble() * 0.5)<<std::endl;
     // 持续调度下一个监听操作（例如每 0.5 个时隙进行一次）
-    midSlotListeningEvent = Simulator::Schedule(Seconds(GetSlotTime().GetDouble() * 0.5), &TdmaSatmac::MidSlotListening, this);
+    midSlotListeningEvent = Simulator::Schedule(Seconds(GetSlotTime().GetDouble() * 1), &TdmaSatmac::MidSlotListening, this);
 }
 
 void TdmaSatmac::SlotGroupEnd()
@@ -2320,14 +2396,237 @@ void TdmaSatmac::SlotGroupEnd()
     {
         Simulator::Cancel(midSlotListeningEvent);
     }
-
     // 时隙组结束时的操作
-    //StartSlotHandler();
+
     // 其他清理操作
     Ptr<MacLayerController> macCtrler = this->getNodePtr()->GetObject<MacLayerController>();
     Ptr<WifiNetDevice> tdma = DynamicCast<WifiNetDevice>(this->getNodePtr()->GetDevice(0));
     Ptr<WifiNetDevice> csma = DynamicCast<WifiNetDevice>(this->getNodePtr()->GetDevice(1));
     macCtrler->SwitchToDevice(tdma);
 }
+
+std::string TdmaSatmac::GetGeohash()
+{
+	//引入geohash，通过接口获得
+	return "00";
+}
+
+struct SlotGroupData {
+    int sg_index;           // 时隙组索引
+    int max_continuity;     // 最大连续空闲时隙数
+    int total_free_slots;   // 总空闲时隙数
+
+    SlotGroupData(int index, int continuity, int total)
+        : sg_index(index), max_continuity(continuity), total_free_slots(total) {}
+};
+
+int TdmaSatmac::determine_SG()
+{
+	    int chosen_sg = -1;
+	    //SlotGroupInfo* sgi_local_ = this->collected_fi_->Slotgroup_describe;
+	    slot_group_info *sgi_local_ = m_sg_info;
+	    slot_tag* fi_local_ = this->collected_fi_->slot_describe;
+	    std::list<SlotGroupData> sg_free_continuity;
+
+	    for(int i = 0; i < m_frame_len / slot_group_length; i++)
+	    {
+	        // 如果当前geohash已经有时隙组
+	        if(sgi_local_[i].geohash == this->GetGeohash())
+	        {
+	            // 如果节点计数少于n个，则选择这个时隙组
+	            if(sgi_local_[i].count_node < 3)
+	            {
+	                chosen_sg = i;  // 选择这个时隙组
+	                return chosen_sg;
+	            }
+	            else
+	            {
+	                // 如果节点计数大于等于n个，继续进行后续逻辑
+	                break;
+	            }
+	        }
+	    }
+
+	    // 初始化每个时隙组的信息
+	    for (int sg = 0; sg < m_frame_len / slot_group_length; sg++) {
+	        sg_free_continuity.push_back(SlotGroupData(sg, 0, 0));  // 初始时隙组信息
+	    }
+
+	    // 统计每个时隙组中的空闲时隙数目和最大连续空闲时隙数
+	    for (int i = 0; i < m_frame_len; i++) {
+	        int sg_index = i / slot_group_length;  // 根据时隙索引获取对应的时隙组
+	        if (fi_local_[i].busy == SLOT_FREE) {
+	            auto it = std::next(sg_free_continuity.begin(), sg_index);
+	            it->total_free_slots++;  // 增加对应时隙组的总空闲计数
+	            int current_continuity = 1;  // 当前连续空闲时隙数
+
+	            // 检查是否有连续的空闲时隙
+	            while (i + 1 < m_frame_len && fi_local_[i + 1].busy == SLOT_FREE && (i + 1) / slot_group_length == sg_index) {
+	                current_continuity++;
+	                i++;
+	            }
+	            // 更新最大连续空闲时隙数
+	            if (current_continuity > it->max_continuity) {
+	                it->max_continuity = current_continuity;
+	            }
+	        }
+	    }
+
+	    // 找到具有最大连续空闲时隙数的时隙组
+	    SlotGroupData best_sg = SlotGroupData(-1, 0, 0);  // 用于记录最优时隙组
+	    for (auto& sg : sg_free_continuity) {
+	        // 如果是空闲时隙组（geohash为"00"）且其连续空闲时隙数更大，更新最优时隙组
+	        if (sgi_local_[sg.sg_index].geohash == "00" && sg.max_continuity > best_sg.max_continuity) {
+	            best_sg = sg;
+	        }
+	    }
+
+	    // 返回最佳时隙组索引
+	    if (best_sg.sg_index != -1) {
+	        chosen_sg = best_sg.sg_index;
+	    }
+
+	    return chosen_sg;
+}
+
+void TdmaSatmac::merge_sgi(SlotGroupTag recv_sgi_tag)
+{
+	int index = 0;
+	int recv_frame_len = recv_sgi_tag.GetFrameLen();
+	int recv_node_sti = recv_sgi_tag.GetSti();
+	slot_group_info* sgi_local = m_sg_info;
+	slot_group_info* sgi_append = recv_sgi_tag.GetSlotGroupInfo();
+	slot_group_info recv_sgi;
+
+	for(index = 0;index < (m_frame_len / slot_group_length); index++)
+	{
+		recv_sgi = sgi_append[index];
+		if(m_slot_group < 0)
+			break;
+
+		if(index == (recv_frame_len / slot_group_length))
+			break;
+
+
+		//节点自己使用的时隙组
+		if(sgi_local[index].geohash == this->GetGeohash() && m_slot_group == index)
+		{
+			//收到的远程sgi记录的geohash和本节点记录的不同
+			if(sgi_local[index].geohash != recv_sgi.geohash && recv_sgi.geohash != "00")
+			{
+				//暂时先空着
+			}
+			//收到的远程sgi记录的geohash和本节点记录的相同
+			else if(sgi_local[index].geohash == recv_sgi.geohash)
+			{
+				//更新节点计数
+				local_same_sg_id.insert(recv_node_sti);
+				sgi_local[index].count_node = local_same_sg_id.size();
+			}
+		}
+	}
+	//遍历每一个时隙组
+	for(index = 0; index < ((recv_frame_len > m_frame_len) ? recv_frame_len : m_frame_len) / slot_group_length; index++)
+	{
+		if(index == recv_frame_len / slot_group_length)
+			break;
+
+		if(index >= (m_frame_len / slot_group_length))
+		{
+			if(sgi_local[index].geohash != "00")
+			{
+				printf("merge_sgi: node %d Protocol ERROR!!\n", global_sti);
+			}
+		}
+
+		recv_sgi = sgi_append[index];
+
+		//本节点的时隙组
+		if(sgi_local[index].geohash == this->GetGeohash() && m_slot_group == index)
+		{
+			//直接跳过，前面已经处理过
+			continue;
+		}
+		//其他区域节点占用的时隙组
+		else if(sgi_local[index].geohash != GetGeohash() && sgi_local[index].geohash != "00")
+		{
+			//与本地sgi信息中geohash描述一致
+			if(sgi_local[index].geohash == recv_sgi.geohash)
+			{
+				//更新节点计数，取大值
+				sgi_local[index].count_node = (sgi_local[index].count_node > recv_sgi.count_node ? sgi_local[index].count_node : recv_sgi.count_node);
+			}
+			//与本地sgi信息中geohash描述不一致
+			else if(sgi_local[index].geohash != recv_sgi.geohash)
+			{
+				//这里根据geohash的差异判断是否在两跳范围内，如果不在两跳范围内则不用更新,后面再加
+				continue;
+			}
+		}
+		//空闲时隙组
+		else if(sgi_local[index].geohash == "00")
+		{
+			if(sgi_local[index].geohash != recv_sgi.geohash)
+			{
+				//这里根据geohash的差异判断是否在两跳范围内,后面再加
+				//如果区域在两跳范围内，更新geohash,不在两跳范围内则不用更新
+//				if(zai fan wei nei)
+//				{
+//					sgi_local[index].geohash = recv_sgi.geohash;
+//					sgi_local[index].count_node = recv_sgi.count_node;
+//				}
+//				else
+//				{
+					continue;
+//				}
+			}
+			else if(sgi_local[index].geohash == recv_sgi.geohash)
+			{
+				sgi_local[index].count_node = 0;//节点计数赋值为0
+			}
+		}
+		//本区域其他节点使用的时隙组（在同一geohash区域，使用的时隙组不同）
+		else if(sgi_local[index].geohash == GetGeohash() && index != m_slot_group)
+		{
+			//与本地sgi信息中geohash描述一致
+			if(sgi_local[index].geohash == recv_sgi.geohash)
+			{
+				//更新节点计数，取大值
+				sgi_local[index].count_node = (sgi_local[index].count_node > recv_sgi.count_node ? sgi_local[index].count_node : recv_sgi.count_node);
+			}
+			//与本地sgi信息中geohash描述不一致
+			else if(sgi_local[index].geohash != recv_sgi.geohash)
+			{
+				//这里根据geohash的差异判断是否在两跳范围内，如果不在两跳范围内则不用更新,后面再加
+				continue;
+			}
+		}
+	}
+}
+
+void TdmaSatmac::CheckIsNeedSG()
+{
+    WifiMacHeader header;
+    AperiodicTag aperiodicTag;
+    std::vector<std::pair<Ptr<const Packet>, WifiMacHeader>> tempQueue;
+    // 逐个出队，检查每个数据包
+    while (!m_queue->IsEmpty())
+    {
+        Ptr<const Packet> packet = m_queue->Dequeue(&header);
+        tempQueue.push_back(std::make_pair(packet, header));  // 保存出队的数据包
+
+        if (packet->PeekPacketTag(aperiodicTag))
+        {
+            isNeedSg = true;  // 找到带有 AperiodicTag 的数据包
+            break;
+        }
+    }
+    // 将所有数据包重新入队
+    for (auto& item : tempQueue)
+    {
+        m_queue->Enqueue(item.first, item.second);  // 重新入队
+    }
+}
+
 
 } // namespace ns3
